@@ -66,7 +66,7 @@
 
   {# ── Enterprise layer stack (scientific / EA view) ── #}
   <section class="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <h2 class="text-base font-semibold text-slate-900">Enterprise architecture layers</h2>
         <p class="mt-1 max-w-2xl text-sm text-slate-600">
@@ -74,9 +74,18 @@
           to internal employee services at the base. Data flows downward; governance wraps operations.
         </p>
       </div>
-      <span class="inline-flex w-fit items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600">
-        Metaphor: layered city · HQ → front office → factory → control tower
-      </span>
+      <div class="flex flex-wrap items-center gap-2 sm:justify-end shrink-0">
+        <span class="hidden lg:inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600">
+          Metaphor: layered city · HQ → front office → factory → control tower
+        </span>
+        <button type="button" id="open-ecosystem-graph"
+                class="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-indigo-500 hover:to-violet-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>
+          </svg>
+          Show graph
+        </button>
+      </div>
     </div>
 
     <div class="mt-6 flex flex-col items-center gap-0">
@@ -276,4 +285,341 @@
   {% endif %}
 
 </div>
+
+{# Ecosystem graph modal #}
+<div id="ecosystem-graph-modal" class="fixed inset-0 z-[80] hidden" aria-hidden="true" role="dialog" aria-labelledby="ecosystem-graph-title">
+  <div class="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" data-graph-dismiss></div>
+  <div class="relative z-10 flex h-full w-full flex-col p-3 sm:p-5">
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-950 shadow-2xl">
+      <header class="flex flex-wrap items-center gap-3 border-b border-slate-800 px-4 py-3 sm:px-5">
+        <div class="min-w-0 flex-1">
+          <h2 id="ecosystem-graph-title" class="text-base font-semibold text-white">Pack ecosystem graph</h2>
+          <p id="graph-summary" class="mt-0.5 text-xs text-slate-400">Loading…</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300">
+            <input type="checkbox" id="graph-filter-installed" class="rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500/40">
+            Installed only
+          </label>
+          <label class="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-300">
+            <input type="checkbox" id="graph-filter-cross" checked class="rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-amber-500/40">
+            Cross-pack links
+          </label>
+          <button type="button" id="graph-fit-btn"
+                  class="rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700">
+            Fit view
+          </button>
+          <button type="button" data-graph-dismiss
+                  class="rounded-lg border border-slate-600 bg-slate-800 p-1.5 text-slate-300 hover:bg-slate-700 hover:text-white"
+                  aria-label="Close graph">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </header>
+      <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <div id="ecosystem-graph-cy" class="min-h-[280px] flex-1 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950/40"></div>
+        <aside class="w-full shrink-0 border-t border-slate-800 lg:w-56 lg:border-t-0 lg:border-l p-4 overflow-y-auto max-h-48 lg:max-h-none">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Legend</p>
+          <ul id="graph-legend" class="mt-2 space-y-1.5 text-[11px] text-slate-400"></ul>
+          <p class="mt-4 text-[10px] font-bold uppercase tracking-wider text-slate-500">Selection</p>
+          <div id="graph-node-detail" class="mt-2 rounded-lg border border-slate-800 bg-slate-900/80 p-2.5 text-xs text-slate-400">
+            Click a node to see details.
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-fcose@2.2.0/cytoscape-fcose.min.js"></script>
+<script>
+(function () {
+  const API_URL = '/agent-setup-packs/api/ecosystem-graph';
+  const modal = document.getElementById('ecosystem-graph-modal');
+  const cyContainer = document.getElementById('ecosystem-graph-cy');
+  const summaryEl = document.getElementById('graph-summary');
+  const legendEl = document.getElementById('graph-legend');
+  const detailEl = document.getElementById('graph-node-detail');
+  const openBtn = document.getElementById('open-ecosystem-graph');
+  const filterInstalled = document.getElementById('graph-filter-installed');
+  const filterCross = document.getElementById('graph-filter-cross');
+  const fitBtn = document.getElementById('graph-fit-btn');
+
+  let cy = null;
+  let graphPayload = null;
+
+  const ACCENT_BORDER = {
+    indigo: '#6366f1', amber: '#f59e0b', rose: '#f43f5e',
+    emerald: '#10b981', violet: '#8b5cf6', sky: '#0ea5e9',
+  };
+
+  const stylesheet = [
+    {
+      selector: 'node[type="pack"]',
+      style: {
+        'background-color': '#1e293b',
+        'background-opacity': 0.35,
+        'border-width': 2,
+        'border-color': '#475569',
+        'shape': 'round-rectangle',
+        'label': 'data(label)',
+        'font-size': 11,
+        'font-weight': 700,
+        'color': '#e2e8f0',
+        'text-valign': 'top',
+        'text-margin-y': -8,
+        'padding': '18px',
+        'min-width': 120,
+        'min-height': 80,
+      },
+    },
+    {
+      selector: 'node[type="pack"][accent]',
+      style: { 'border-color': function (ele) { return ACCENT_BORDER[ele.data('accent')] || '#64748b'; } },
+    },
+    {
+      selector: 'node.resource-node',
+      style: {
+        'label': 'data(label)',
+        'font-size': 9,
+        'color': '#f8fafc',
+        'text-outline-width': 2,
+        'text-outline-color': '#0f172a',
+        'width': 28,
+        'height': 28,
+        'border-width': 2,
+      },
+    },
+    {
+      selector: 'node.agent',
+      style: { 'shape': 'ellipse' },
+    },
+    {
+      selector: 'node.deep_agent',
+      style: { 'shape': 'round-hexagon', 'width': 32, 'height': 32 },
+    },
+    {
+      selector: 'node.flow',
+      style: { 'shape': 'round-diamond', 'width': 30, 'height': 30 },
+    },
+    {
+      selector: 'node.installed',
+      style: {
+        'background-color': '#10b981',
+        'border-color': '#34d399',
+        'background-opacity': 0.95,
+      },
+    },
+    {
+      selector: 'node.pending',
+      style: {
+        'background-color': '#64748b',
+        'border-color': '#94a3b8',
+        'background-opacity': 0.55,
+      },
+    },
+    {
+      selector: 'node.installed.agent',
+      style: { 'background-color': '#0d9488', 'border-color': '#2dd4bf' },
+    },
+    {
+      selector: 'node.installed.deep_agent',
+      style: { 'background-color': '#7c3aed', 'border-color': '#a78bfa' },
+    },
+    {
+      selector: 'node.installed.flow',
+      style: { 'background-color': '#059669', 'border-color': '#34d399' },
+    },
+    {
+      selector: 'node.pending.deep_agent',
+      style: { 'background-color': '#6d28d9', 'border-color': '#c4b5fd', 'background-opacity': 0.45 },
+    },
+    {
+      selector: 'node.pending.flow',
+      style: { 'background-color': '#475569', 'border-color': '#94a3b8' },
+    },
+    {
+      selector: 'edge',
+      style: {
+        'width': 1.5,
+        'line-color': '#64748b',
+        'target-arrow-color': '#64748b',
+        'target-arrow-shape': 'triangle',
+        'curve-style': 'bezier',
+        'opacity': 0.7,
+      },
+    },
+    {
+      selector: 'edge.edge-sub_agent',
+      style: { 'line-color': '#a78bfa', 'target-arrow-color': '#a78bfa' },
+    },
+    {
+      selector: 'edge.edge-flow_requires, edge.edge-flow_entry',
+      style: { 'line-color': '#34d399', 'target-arrow-color': '#34d399' },
+    },
+    {
+      selector: 'edge.edge-flow_sequence',
+      style: { 'line-color': '#334155', 'target-arrow-color': '#334155', 'line-style': 'dotted', 'width': 1, 'opacity': 0.4 },
+    },
+    {
+      selector: 'edge.edge-cross_pack',
+      style: {
+        'line-color': '#f59e0b',
+        'target-arrow-color': '#f59e0b',
+        'line-style': 'dashed',
+        'width': 2,
+      },
+    },
+    {
+      selector: 'edge.edge-cross_pack[?target_installed]',
+      style: { 'line-color': '#10b981', 'target-arrow-color': '#10b981' },
+    },
+    {
+      selector: 'node:selected',
+      style: { 'border-width': 3, 'border-color': '#fbbf24' },
+    },
+    {
+      selector: '.hidden-node, .hidden-edge',
+      style: { 'display': 'none' },
+    },
+  ];
+
+  function openModal() {
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('overflow-hidden');
+    loadGraph();
+  }
+
+  function closeModal() {
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('overflow-hidden');
+  }
+
+  function renderLegend(items) {
+    legendEl.innerHTML = (items || []).map(function (item) {
+      return '<li class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full shrink-0" style="background:' + item.color + '"></span><span>' + item.label + '</span></li>';
+    }).join('');
+  }
+
+  function applyFilters() {
+    if (!cy) return;
+    const onlyInstalled = filterInstalled.checked;
+    const showCross = filterCross.checked;
+    cy.nodes().forEach(function (n) {
+      if (n.data('type') === 'pack') {
+        n.removeClass('hidden-node');
+        return;
+      }
+      const hide = onlyInstalled && !n.data('installed');
+      n.toggleClass('hidden-node', hide);
+    });
+    cy.edges().forEach(function (e) {
+      const et = e.data('edge_type');
+      let hide = false;
+      if (et === 'cross_pack' && !showCross) hide = true;
+      if (onlyInstalled) {
+        const src = cy.getElementById(e.data('source'));
+        const tgt = cy.getElementById(e.data('target'));
+        if (src.hasClass('hidden-node') || tgt.hasClass('hidden-node')) hide = true;
+      }
+      e.toggleClass('hidden-edge', hide);
+    });
+    cy.layout({ name: 'fcose', animate: false, randomize: false, padding: 40 }).run();
+    setTimeout(function () { cy.fit(undefined, 48); }, 120);
+  }
+
+  function showNodeDetail(node) {
+    if (!node || node.data('type') === 'pack') {
+      const d = node ? node.data() : {};
+      detailEl.innerHTML = '<p class="font-semibold text-slate-200">' + (d.name || d.label || 'Pack') + '</p>' +
+        '<p class="mt-1">' + (d.installed_count || 0) + ' / ' + (d.resource_count || 0) + ' resources installed</p>' +
+        '<a class="mt-2 inline-block text-indigo-400 hover:text-indigo-300" href="' + (d.detail_url || '#') + '">Open pack →</a>';
+      return;
+    }
+    const d = node.data();
+    const status = d.installed
+      ? '<span class="text-emerald-400 font-medium">Installed</span>' + (d.alias ? ' · ' + d.alias : '')
+      : '<span class="text-slate-500">Not installed</span>';
+    const typeLabel = (d.resource_type || '').replace('_', ' ');
+    detailEl.innerHTML = '<p class="font-semibold text-slate-200">' + d.label + '</p>' +
+      '<p class="mt-0.5 capitalize text-slate-500">' + typeLabel + '</p>' +
+      '<p class="mt-1">' + status + '</p>' +
+      '<a class="mt-2 inline-block text-indigo-400 hover:text-indigo-300" href="' + (d.detail_url || '#') + '">' +
+      (d.installed ? 'Open resource →' : 'View in pack →') + '</a>';
+  }
+
+  function initCy(elements) {
+    if (cy) {
+      cy.destroy();
+      cy = null;
+    }
+    cy = cytoscape({
+      container: cyContainer,
+      elements: elements,
+      style: stylesheet,
+      minZoom: 0.15,
+      maxZoom: 3,
+      wheelSensitivity: 0.2,
+    });
+    cy.on('tap', 'node', function (evt) {
+      showNodeDetail(evt.target);
+    });
+    cy.layout({
+      name: 'fcose',
+      quality: 'default',
+      randomize: true,
+      animate: true,
+      animationDuration: 600,
+      fit: true,
+      padding: 50,
+      nodeSeparation: 75,
+      idealEdgeLength: 80,
+      nodeRepulsion: 4500,
+      gravity: 0.25,
+    }).run();
+    cy.on('layoutstop', function () {
+      cy.fit(undefined, 48);
+    });
+  }
+
+  async function loadGraph() {
+    summaryEl.textContent = 'Loading graph…';
+    try {
+      const res = await fetch(API_URL, { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      graphPayload = await res.json();
+      const s = graphPayload.summary || {};
+      summaryEl.textContent = s.pack_count + ' packs · ' + s.total_resources + ' resources · ' +
+        s.installed_resources + ' installed · ' + s.edge_count + ' relationships';
+      renderLegend(graphPayload.legend);
+      const elements = [];
+      (graphPayload.elements.nodes || []).forEach(function (n) { elements.push(n); });
+      (graphPayload.elements.edges || []).forEach(function (e) { elements.push(e); });
+      initCy(elements);
+      applyFilters();
+    } catch (err) {
+      summaryEl.textContent = 'Failed to load graph.';
+      console.error(err);
+    }
+  }
+
+  openBtn.addEventListener('click', openModal);
+  modal.querySelectorAll('[data-graph-dismiss]').forEach(function (el) {
+    el.addEventListener('click', closeModal);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+  });
+  filterInstalled.addEventListener('change', applyFilters);
+  filterCross.addEventListener('change', applyFilters);
+  fitBtn.addEventListener('click', function () {
+    if (cy) cy.fit(undefined, 48);
+  });
+})();
+</script>
 {% endblock %}

@@ -12,15 +12,20 @@ def query_installed_resources(
     catalog_key: str,
 ) -> dict[tuple[str, str], dict[str, Any]]:
     """Map (resource_type, logical_key) → latest successful install metadata."""
+    all_by_catalog = query_all_installed_resources(db)
+    return dict(all_by_catalog.get(catalog_key, {}))
+
+
+def query_all_installed_resources(
+    db: Session,
+) -> dict[str, dict[tuple[str, str], dict[str, Any]]]:
+    """Map catalog_key → (resource_type, logical_key) → install metadata."""
     from models import AgentSetupPackInstallation, AgentSetupPackResourceMap
 
     rows = (
         db.query(AgentSetupPackResourceMap)
         .join(AgentSetupPackInstallation)
-        .filter(
-            AgentSetupPackInstallation.template_key == catalog_key,
-            AgentSetupPackInstallation.status == "success",
-        )
+        .filter(AgentSetupPackInstallation.status == "success")
         .order_by(
             AgentSetupPackInstallation.created_at.desc(),
             AgentSetupPackResourceMap.id.desc(),
@@ -28,18 +33,20 @@ def query_installed_resources(
         .all()
     )
 
-    installed: dict[tuple[str, str], dict[str, Any]] = {}
+    by_catalog: dict[str, dict[tuple[str, str], dict[str, Any]]] = {}
     for row in rows:
+        catalog_key = row.installation.template_key
         key = (row.resource_type, row.logical_key)
-        if key in installed:
+        catalog_map = by_catalog.setdefault(catalog_key, {})
+        if key in catalog_map:
             continue
-        installed[key] = {
+        catalog_map[key] = {
             "resource_id": row.resource_id,
             "alias": row.alias,
             "installation_id": row.installation_id,
             "installed_url": _resource_url(row.resource_type, row.resource_id),
         }
-    return installed
+    return by_catalog
 
 
 def _resource_url(resource_type: str, resource_id: int) -> str:

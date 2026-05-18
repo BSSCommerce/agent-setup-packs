@@ -30,11 +30,12 @@ from pack_catalog import (  # noqa: E402
     get_pack_slug_for_key,
 )
 from services.install_options import InstallOptions  # noqa: E402
-from services.pack_installer import PackInstaller, PackInstallerError  # noqa: E402
+from services.pack_graph import build_ecosystem_graph  # noqa: E402
 from services.pack_install_status import (  # noqa: E402
     apply_install_status_to_inventory,
     query_installed_resources,
 )
+from services.pack_installer import PackInstaller, PackInstallerError  # noqa: E402
 from services.pack_inventory import get_resource_preview, load_inventory_for_catalog  # noqa: E402
 from services.pack_loader import PackLoader, PackNotFoundError  # noqa: E402
 
@@ -154,6 +155,26 @@ async def setup_packs_overview_page(request: Request, db: Session = Depends(get_
             "installed_by_key": installed_by_key,
             "recent_installations": installations,
         },
+    )
+
+
+@router.get("/api/ecosystem-graph")
+async def ecosystem_graph_api(request: Request, db: Session = Depends(get_db)):
+    user, err = _auth_or_401(db, request)
+    if err:
+        return err
+
+    try:
+        graph = build_ecosystem_graph(db, loader=PackLoader())
+    except PackNotFoundError as exc:
+        return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+    return JSONResponse(
+        content={
+            "elements": {"nodes": graph["nodes"], "edges": graph["edges"]},
+            "summary": graph["summary"],
+            "legend": graph["legend"],
+        }
     )
 
 
