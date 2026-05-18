@@ -1,0 +1,108 @@
+{
+  "version": "1",
+  "logical_key": "incident_response",
+  "name": "Incident Response",
+  "description": "Repeatable incident investigation: triage, telemetry, runbook planning, change risk, and PIR draft.",
+  "status": "draft",
+  "alias_prefix": "ops",
+  "approval_notes": [
+    "Before running remediation steps from runbook plan",
+    "Before customer or executive communication",
+    "Before closing the incident"
+  ],
+  "flow": {
+    "start_node_id": "triage",
+    "nodes": [
+      {
+        "id": "triage",
+        "name": "Incident Triage",
+        "type": "agent",
+        "label": "Triage",
+        "agent_alias": "ops_incident_triage_analyst",
+        "input_mappings": []
+      },
+      {
+        "id": "telemetry",
+        "name": "Logs & Metrics",
+        "type": "agent",
+        "label": "Telemetry",
+        "agent_alias": "ops_logs_and_metrics_investigator",
+        "input_mappings": [
+          {
+            "source_node_id": "triage",
+            "source_path": "output_json",
+            "target_field": "incident_triage"
+          }
+        ]
+      },
+      {
+        "id": "runbook",
+        "name": "Runbook Plan",
+        "type": "agent",
+        "label": "Runbook",
+        "agent_alias": "ops_runbook_executor",
+        "input_mappings": [
+          {
+            "source_node_id": "triage",
+            "source_path": "output_json",
+            "target_field": "incident_triage"
+          },
+          {
+            "source_node_id": "telemetry",
+            "source_path": "output_json",
+            "target_field": "telemetry"
+          }
+        ]
+      },
+      {
+        "id": "change_risk",
+        "name": "Change Risk",
+        "type": "agent",
+        "label": "Risk",
+        "agent_alias": "ops_change_risk_analyst",
+        "input_mappings": [
+          {
+            "source_node_id": "runbook",
+            "source_path": "output_json",
+            "target_field": "runbook_plan"
+          },
+          {
+            "source_node_id": "telemetry",
+            "source_path": "output_json",
+            "target_field": "telemetry"
+          }
+        ]
+      },
+      {
+        "id": "pir_draft",
+        "name": "PIR Draft",
+        "type": "agent",
+        "label": "PIR",
+        "agent_alias": "ops_post_incident_review_writer",
+        "input_mappings": [
+          {
+            "source_node_id": "triage",
+            "source_path": "output_json",
+            "target_field": "incident_triage"
+          },
+          {
+            "source_node_id": "telemetry",
+            "source_path": "output_json",
+            "target_field": "telemetry"
+          },
+          {
+            "source_node_id": "change_risk",
+            "source_path": "output_json",
+            "target_field": "change_risk"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_tri_tel", "source": "triage", "target": "telemetry"},
+      {"id": "e_tel_rb", "source": "telemetry", "target": "runbook"},
+      {"id": "e_rb_risk", "source": "runbook", "target": "change_risk"},
+      {"id": "e_risk_pir", "source": "change_risk", "target": "pir_draft"}
+    ]
+  }
+}

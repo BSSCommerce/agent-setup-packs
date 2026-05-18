@@ -1,0 +1,6 @@
+# Pack metadata (installer reads this + agents/, deep_agents/, flows/)
+version: "0.1.0"
+slug: delivery_core
+catalog_key: engineering_delivery_core
+name: Engineering Delivery Core
+description: Agents and flows for software feature delivery (requirements through release readiness).

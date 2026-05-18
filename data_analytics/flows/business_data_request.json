@@ -1,0 +1,88 @@
+{
+  "version": "1",
+  "logical_key": "business_data_request",
+  "name": "Business Data Request",
+  "description": "Clarify metrics, draft SQL, validate quality, and narrate insights for a business question.",
+  "status": "draft",
+  "alias_prefix": "data",
+  "approval_notes": [
+    "Before executing data queries",
+    "Before exporting sensitive data",
+    "Before sharing customer-level data externally"
+  ],
+  "flow": {
+    "start_node_id": "clarify",
+    "nodes": [
+      {
+        "id": "clarify",
+        "name": "Clarify Request",
+        "type": "agent",
+        "label": "Clarify",
+        "agent_alias": "data_data_request_clarifier",
+        "input_mappings": []
+      },
+      {
+        "id": "sql",
+        "name": "SQL Draft",
+        "type": "agent",
+        "label": "SQL",
+        "agent_alias": "data_sql_analyst",
+        "input_mappings": [
+          {
+            "source_node_id": "clarify",
+            "source_path": "output_json",
+            "target_field": "requirements"
+          }
+        ]
+      },
+      {
+        "id": "quality",
+        "name": "Data Quality",
+        "type": "agent",
+        "label": "Quality",
+        "agent_alias": "data_data_quality_validator",
+        "input_mappings": [
+          {
+            "source_node_id": "clarify",
+            "source_path": "output_json",
+            "target_field": "requirements"
+          },
+          {
+            "source_node_id": "sql",
+            "source_path": "output_json",
+            "target_field": "sql_draft"
+          }
+        ]
+      },
+      {
+        "id": "narrate",
+        "name": "Insight Narrative",
+        "type": "agent",
+        "label": "Narrate",
+        "agent_alias": "data_insight_narrator",
+        "input_mappings": [
+          {
+            "source_node_id": "clarify",
+            "source_path": "output_json",
+            "target_field": "requirements"
+          },
+          {
+            "source_node_id": "sql",
+            "source_path": "output_json",
+            "target_field": "sql_draft"
+          },
+          {
+            "source_node_id": "quality",
+            "source_path": "output_json",
+            "target_field": "quality_review"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_cl_sql", "source": "clarify", "target": "sql"},
+      {"id": "e_sql_q", "source": "sql", "target": "quality"},
+      {"id": "e_q_nar", "source": "quality", "target": "narrate"}
+    ]
+  }
+}

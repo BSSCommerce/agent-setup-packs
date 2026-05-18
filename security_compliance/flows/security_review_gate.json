@@ -1,0 +1,92 @@
+{
+  "version": "1",
+  "logical_key": "security_review_gate",
+  "name": "Security Review Gate",
+  "description": "Gate feature or design changes: threat model, access review, policy check, and compliance scope before release.",
+  "status": "draft",
+  "alias_prefix": "sec",
+  "approval_notes": [
+    "Before accepting residual security risk",
+    "Before production deploy or external launch",
+    "Before policy exceptions or waivers"
+  ],
+  "optional_nodes": [
+    {
+      "insert_after": "policy",
+      "insert_before": "compliance",
+      "pack": "engineering_delivery_core",
+      "logical_key": "release_manager",
+      "reason": "Research feature flow ends with Release Manager after security gate; install delivery_core to append release node."
+    }
+  ],
+  "flow": {
+    "start_node_id": "threats",
+    "nodes": [
+      {
+        "id": "threats",
+        "name": "Threat Model",
+        "type": "agent",
+        "label": "Threats",
+        "agent_alias": "sec_threat_modeling_analyst",
+        "input_mappings": []
+      },
+      {
+        "id": "access",
+        "name": "Access Review",
+        "type": "agent",
+        "label": "Access",
+        "agent_alias": "sec_access_review_analyst",
+        "input_mappings": [
+          {
+            "source_node_id": "threats",
+            "source_path": "output_json",
+            "target_field": "threat_model"
+          }
+        ]
+      },
+      {
+        "id": "policy",
+        "name": "Policy Review",
+        "type": "agent",
+        "label": "Policy",
+        "agent_alias": "sec_security_policy_reviewer",
+        "input_mappings": [
+          {
+            "source_node_id": "threats",
+            "source_path": "output_json",
+            "target_field": "threat_model"
+          },
+          {
+            "source_node_id": "access",
+            "source_path": "output_json",
+            "target_field": "access_review"
+          }
+        ]
+      },
+      {
+        "id": "compliance",
+        "name": "Compliance Scope",
+        "type": "agent",
+        "label": "Compliance",
+        "agent_alias": "sec_compliance_evidence_collector",
+        "input_mappings": [
+          {
+            "source_node_id": "policy",
+            "source_path": "output_json",
+            "target_field": "policy_review"
+          },
+          {
+            "source_node_id": "threats",
+            "source_path": "output_json",
+            "target_field": "threat_model"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_thr_acc", "source": "threats", "target": "access"},
+      {"id": "e_acc_pol", "source": "access", "target": "policy"},
+      {"id": "e_pol_comp", "source": "policy", "target": "compliance"}
+    ]
+  }
+}

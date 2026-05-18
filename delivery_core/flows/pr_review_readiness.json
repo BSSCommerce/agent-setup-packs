@@ -1,0 +1,96 @@
+{
+  "version": "1",
+  "logical_key": "pr_review_readiness",
+  "name": "PR Review Readiness",
+  "description": "Evaluate whether a change is ready for human review or merge: design impact, tests, code review, release impact.",
+  "status": "draft",
+  "alias_prefix": "it",
+  "approval_notes": [
+    "Before posting review comments to GitLab",
+    "Before changing merge request approval status"
+  ],
+  "optional_nodes": [
+    {
+      "insert_after": "review",
+      "insert_before": "release",
+      "pack": "security_compliance",
+      "logical_key": "security_review_lead",
+      "reason": "Research flow includes Security Review Lead before Release Manager."
+    }
+  ],
+  "flow": {
+    "start_node_id": "architecture",
+    "nodes": [
+      {
+        "id": "architecture",
+        "name": "Design Impact",
+        "type": "agent",
+        "label": "Architecture",
+        "agent_alias": "it_solution_architect",
+        "input_mappings": []
+      },
+      {
+        "id": "qa",
+        "name": "Test Coverage",
+        "type": "agent",
+        "label": "QA",
+        "agent_alias": "it_qa_test_planner",
+        "input_mappings": [
+          {
+            "source_node_id": "architecture",
+            "source_path": "output_json",
+            "target_field": "change_analysis"
+          }
+        ]
+      },
+      {
+        "id": "review",
+        "name": "Code Review",
+        "type": "agent",
+        "label": "Review",
+        "agent_alias": "it_code_reviewer",
+        "input_mappings": [
+          {
+            "source_node_id": "architecture",
+            "source_path": "output_json",
+            "target_field": "change_analysis"
+          },
+          {
+            "source_node_id": "qa",
+            "source_path": "output_json",
+            "target_field": "test_strategy"
+          }
+        ]
+      },
+      {
+        "id": "release",
+        "name": "Release Impact",
+        "type": "agent",
+        "label": "Release",
+        "agent_alias": "it_release_manager",
+        "input_mappings": [
+          {
+            "source_node_id": "review",
+            "source_path": "output_json",
+            "target_field": "review_findings"
+          },
+          {
+            "source_node_id": "qa",
+            "source_path": "output_json",
+            "target_field": "test_strategy"
+          },
+          {
+            "source_node_id": "architecture",
+            "source_path": "output_json",
+            "target_field": "change_analysis"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_arch_qa", "source": "architecture", "target": "qa"},
+      {"id": "e_qa_rev", "source": "qa", "target": "review"},
+      {"id": "e_rev_rel", "source": "review", "target": "release"}
+    ]
+  }
+}

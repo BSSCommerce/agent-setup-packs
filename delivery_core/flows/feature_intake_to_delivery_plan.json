@@ -1,0 +1,150 @@
+{
+  "version": "1",
+  "logical_key": "feature_intake_to_delivery_plan",
+  "name": "Feature Intake To Delivery Plan",
+  "description": "Convert a rough product request into a delivery-ready engineering plan (requirements, architecture, implementation, QA, release).",
+  "status": "draft",
+  "alias_prefix": "it",
+  "approval_notes": [
+    "After requirements if open_questions remain",
+    "Before implementation automation tools",
+    "Before final release recommendation"
+  ],
+  "optional_nodes": [
+    {
+      "insert_after": "qa",
+      "insert_before": "release",
+      "pack": "security_compliance",
+      "logical_key": "security_review_lead",
+      "reason": "Research flow includes security gate; install security pack to insert node."
+    }
+  ],
+  "flow": {
+    "start_node_id": "requirements",
+    "nodes": [
+      {
+        "id": "requirements",
+        "name": "Requirements",
+        "type": "agent",
+        "label": "Requirements",
+        "agent_alias": "it_product_requirements_analyst",
+        "input_mappings": []
+      },
+      {
+        "id": "architecture",
+        "name": "Architecture",
+        "type": "agent",
+        "label": "Architecture",
+        "agent_alias": "it_solution_architect",
+        "input_mappings": [
+          {
+            "source_node_id": "requirements",
+            "source_path": "output_json",
+            "target_field": "requirements"
+          }
+        ]
+      },
+      {
+        "id": "backend",
+        "name": "Backend Plan",
+        "type": "agent",
+        "label": "Backend",
+        "agent_alias": "it_backend_engineer",
+        "input_mappings": [
+          {
+            "source_node_id": "architecture",
+            "source_path": "output_json",
+            "target_field": "architecture"
+          },
+          {
+            "source_node_id": "requirements",
+            "source_path": "output_json",
+            "target_field": "requirements"
+          }
+        ]
+      },
+      {
+        "id": "frontend",
+        "name": "Frontend Plan",
+        "type": "agent",
+        "label": "Frontend",
+        "agent_alias": "it_frontend_engineer",
+        "input_mappings": [
+          {
+            "source_node_id": "architecture",
+            "source_path": "output_json",
+            "target_field": "architecture"
+          },
+          {
+            "source_node_id": "requirements",
+            "source_path": "output_json",
+            "target_field": "requirements"
+          }
+        ]
+      },
+      {
+        "id": "merge_impl",
+        "name": "Merge Implementation Plans",
+        "type": "merge",
+        "label": "Merge"
+      },
+      {
+        "id": "qa",
+        "name": "QA Strategy",
+        "type": "agent",
+        "label": "QA",
+        "agent_alias": "it_qa_test_planner",
+        "input_mappings": [
+          {
+            "source_node_id": "requirements",
+            "source_path": "output_json",
+            "target_field": "requirements"
+          },
+          {
+            "source_node_id": "architecture",
+            "source_path": "output_json",
+            "target_field": "architecture"
+          },
+          {
+            "source_node_id": "merge_impl",
+            "source_path": "output_json",
+            "target_field": "implementation_plans"
+          }
+        ]
+      },
+      {
+        "id": "release",
+        "name": "Release Readiness",
+        "type": "agent",
+        "label": "Release",
+        "agent_alias": "it_release_manager",
+        "input_mappings": [
+          {
+            "source_node_id": "requirements",
+            "source_path": "output_json",
+            "target_field": "requirements"
+          },
+          {
+            "source_node_id": "qa",
+            "source_path": "output_json",
+            "target_field": "test_strategy"
+          },
+          {
+            "source_node_id": "merge_impl",
+            "source_path": "output_json",
+            "target_field": "implementation_plans"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_req_arch", "source": "requirements", "target": "architecture"},
+      {"id": "e_arch_be", "source": "architecture", "target": "backend"},
+      {"id": "e_arch_fe", "source": "architecture", "target": "frontend"},
+      {"id": "e_be_merge", "source": "backend", "target": "merge_impl"},
+      {"id": "e_fe_merge", "source": "frontend", "target": "merge_impl"},
+      {"id": "e_merge_qa", "source": "merge_impl", "target": "qa"},
+      {"id": "e_qa_rel", "source": "qa", "target": "release"}
+    ]
+  }
+}

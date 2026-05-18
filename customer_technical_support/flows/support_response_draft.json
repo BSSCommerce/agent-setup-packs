@@ -1,0 +1,63 @@
+{
+  "version": "1",
+  "logical_key": "support_response_draft",
+  "name": "Support Response Draft",
+  "description": "Draft a customer reply from issue summary and knowledge search without full engineering escalation.",
+  "status": "draft",
+  "alias_prefix": "cs",
+  "approval_notes": [
+    "Before sending customer-facing response",
+    "Before sharing workarounds not in public documentation",
+    "Before closing ticket as resolved"
+  ],
+  "flow": {
+    "start_node_id": "summarize",
+    "nodes": [
+      {
+        "id": "summarize",
+        "name": "Issue Summary",
+        "type": "agent",
+        "label": "Summary",
+        "agent_alias": "cs_customer_issue_summarizer",
+        "input_mappings": []
+      },
+      {
+        "id": "kb",
+        "name": "Knowledge Search",
+        "type": "agent",
+        "label": "KB",
+        "agent_alias": "cs_support_knowledge_search_agent",
+        "input_mappings": [
+          {
+            "source_node_id": "summarize",
+            "source_path": "output_json",
+            "target_field": "issue_summary"
+          }
+        ]
+      },
+      {
+        "id": "response",
+        "name": "Customer Response",
+        "type": "agent",
+        "label": "Response",
+        "agent_alias": "cs_customer_response_writer",
+        "input_mappings": [
+          {
+            "source_node_id": "summarize",
+            "source_path": "output_json",
+            "target_field": "issue_summary"
+          },
+          {
+            "source_node_id": "kb",
+            "source_path": "output_json",
+            "target_field": "kb_results"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_sum_kb", "source": "summarize", "target": "kb"},
+      {"id": "e_kb_res", "source": "kb", "target": "response"}
+    ]
+  }
+}

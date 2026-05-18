@@ -1,0 +1,8 @@
+# Pack metadata (installer reads this + agents/, deep_agents/, flows/)
+version: "0.1.0"
+slug: security_compliance
+catalog_key: security_compliance
+name: Security & Compliance
+description: >-
+  Threat modeling, vulnerability triage, access reviews, policy checks, and
+  compliance evidence — recommendations first, remediation human-gated.

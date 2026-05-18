@@ -1,0 +1,8 @@
+# Pack metadata (installer reads this + agents/, deep_agents/, flows/)
+version: "0.1.0"
+slug: data_analytics
+catalog_key: data_analytics
+name: Data & Analytics
+description: >-
+  Clarify metrics, draft SQL plans, validate data quality, specify dashboards,
+  and narrate insights — query execution human-gated.

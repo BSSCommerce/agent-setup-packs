@@ -1,0 +1,8 @@
+# Pack metadata (installer reads this + agents/, deep_agents/, flows/)
+version: "0.1.0"
+slug: customer_technical_support
+catalog_key: customer_technical_support
+name: Customer Technical Support
+description: >-
+  B2B customer support: issue summarization, knowledge search, reproduction guides,
+  engineering escalations, and customer-facing responses with approval gates.

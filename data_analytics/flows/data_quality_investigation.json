@@ -1,0 +1,78 @@
+{
+  "version": "1",
+  "logical_key": "data_quality_investigation",
+  "name": "Data Quality Investigation",
+  "description": "Investigate data quality for a dataset or pipeline: scope, profiling SQL, validation, and summary.",
+  "status": "draft",
+  "alias_prefix": "data",
+  "approval_notes": [
+    "Before running profiling queries on production data",
+    "Before alerting downstream consumers",
+    "Before changing pipelines or source systems"
+  ],
+  "flow": {
+    "start_node_id": "scope",
+    "nodes": [
+      {
+        "id": "scope",
+        "name": "Scope & Metrics",
+        "type": "agent",
+        "label": "Scope",
+        "agent_alias": "data_data_request_clarifier",
+        "input_mappings": []
+      },
+      {
+        "id": "profile_sql",
+        "name": "Profiling SQL",
+        "type": "agent",
+        "label": "Profile",
+        "agent_alias": "data_sql_analyst",
+        "input_mappings": [
+          {
+            "source_node_id": "scope",
+            "source_path": "output_json",
+            "target_field": "dq_scope"
+          }
+        ]
+      },
+      {
+        "id": "validate",
+        "name": "Quality Validation",
+        "type": "agent",
+        "label": "Validate",
+        "agent_alias": "data_data_quality_validator",
+        "input_mappings": [
+          {
+            "source_node_id": "scope",
+            "source_path": "output_json",
+            "target_field": "dq_scope"
+          },
+          {
+            "source_node_id": "profile_sql",
+            "source_path": "output_json",
+            "target_field": "profiling_plan"
+          }
+        ]
+      },
+      {
+        "id": "summary",
+        "name": "Stakeholder Summary",
+        "type": "agent",
+        "label": "Summary",
+        "agent_alias": "data_insight_narrator",
+        "input_mappings": [
+          {
+            "source_node_id": "validate",
+            "source_path": "output_json",
+            "target_field": "quality_findings"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_sc_pr", "source": "scope", "target": "profile_sql"},
+      {"id": "e_pr_val", "source": "profile_sql", "target": "validate"},
+      {"id": "e_val_sum", "source": "validate", "target": "summary"}
+    ]
+  }
+}

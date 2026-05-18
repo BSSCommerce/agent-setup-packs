@@ -1,0 +1,705 @@
+{% extends "base.html" %}
+
+{% block title %}{{ pack.name }} — Setup Packs{% endblock %}
+
+{% macro installed_badge(item) %}
+{% if item.installed %}
+<span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800" title="{% if item.installed_alias %}{{ item.installed_alias }}{% endif %}">
+  <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.25a1 1 0 0 1-1.414 0l-3.25-3.25a1 1 0 1 1 1.414-1.414l2.543 2.543 6.543-6.543a1 1 0 0 1 1.413-.006Z" clip-rule="evenodd"/></svg>
+  Installed
+</span>
+{% endif %}
+{% endmacro %}
+
+{% macro resource_action_buttons(item, resource_type) %}
+<button type="button"
+        class="preview-btn rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-indigo-700 hover:border-indigo-200 hover:bg-indigo-50"
+        data-resource-type="{{ resource_type }}"
+        data-logical-key="{{ item.logical_key }}">
+  Preview
+</button>
+{% if item.installed and item.installed_url %}
+<a href="{{ item.installed_url }}"
+   class="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100">
+  Open
+</a>
+{% else %}
+<button type="button"
+        class="install-one-btn rounded-lg px-2 py-1 text-[11px] font-medium text-white
+        {% if resource_type == 'flow' %}border border-emerald-600 bg-emerald-600 hover:bg-emerald-700
+        {% elif resource_type == 'deep_agent' %}border border-violet-300 bg-violet-600 hover:bg-violet-700
+        {% else %}border border-sky-200 bg-sky-600 hover:bg-sky-700{% endif %}"
+        data-resource-type="{{ resource_type }}"
+        data-logical-key="{{ item.logical_key }}"
+        data-resource-label="{{ item.name }}">
+  Install
+</button>
+{% endif %}
+{% endmacro %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6 pb-10">
+
+  <nav class="text-sm">
+    <a href="/agent-setup-packs" class="font-medium text-indigo-600 hover:text-indigo-700">← All setup packs</a>
+  </nav>
+
+  <header class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm overflow-hidden relative">
+    <div class="absolute top-0 left-0 right-0 h-1.5
+      {% if pack.accent == 'indigo' %}bg-indigo-500
+      {% elif pack.accent == 'amber' %}bg-amber-500
+      {% elif pack.accent == 'rose' %}bg-rose-500
+      {% elif pack.accent == 'emerald' %}bg-emerald-500
+      {% elif pack.accent == 'violet' %}bg-violet-500
+      {% else %}bg-sky-500{% endif %}"></div>
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{{ pack.org_layer }}</p>
+        <h1 class="mt-1 text-2xl font-semibold text-zinc-900">{{ pack.name }}</h1>
+        <p class="mt-2 text-sm text-zinc-600">{{ pack.summary }}</p>
+        {% if pack_inventory %}
+        <p class="mt-2 text-xs text-zinc-500">
+          Pack <code class="rounded bg-zinc-100 px-1 font-mono text-[11px]">{{ pack_slug }}</code>
+          · v{{ pack_inventory.version }}
+        </p>
+        {% endif %}
+      </div>
+      {% if pack_on_disk %}
+      <button type="button" id="open-setup-panel"
+              class="shrink-0 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">
+        Setup pack
+      </button>
+      {% else %}
+      <span class="shrink-0 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800">
+        Pack files not on disk
+      </span>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if pack_on_disk %}
+  <section id="setup-panel" class="hidden rounded-2xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-sm">
+    <h2 class="text-sm font-semibold text-zinc-900">Install {{ pack.name }}</h2>
+    <p class="mt-1 text-xs text-zinc-600">Full pack below, or use <strong>Install</strong> on each agent / deep agent / flow (same alias prefix).</p>
+    <form id="setup-form" class="mt-4 grid gap-4 sm:grid-cols-2">
+      <label class="block text-sm">
+        <span class="font-medium text-zinc-700">Alias prefix</span>
+        <input name="alias_prefix" value="it" maxlength="32" class="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
+      </label>
+      <label class="block text-sm">
+        <span class="font-medium text-zinc-700">Tool profile</span>
+        <select name="tool_profile" class="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm">
+          <option value="read_only" selected>Read only</option>
+          <option value="prompt_only">Prompts only</option>
+          <option value="integrated">Integrated</option>
+        </select>
+      </label>
+      <label class="block text-sm">
+        <span class="font-medium text-zinc-700">Flow status</span>
+        <select name="flow_status" class="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm">
+          <option value="draft" selected>Draft</option>
+          <option value="active">Active</option>
+        </select>
+      </label>
+      <label class="block text-sm">
+        <span class="font-medium text-zinc-700">If alias exists</span>
+        <select name="on_alias_conflict" class="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm">
+          <option value="fail" selected>Fail</option>
+          <option value="suffix">Suffix</option>
+          <option value="skip">Skip</option>
+        </select>
+      </label>
+    </form>
+    <div class="mt-4 flex flex-wrap gap-2">
+      <button type="button" id="dry-run-btn" class="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Dry run</button>
+      <button type="button" id="install-btn" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Install now</button>
+    </div>
+    <pre id="setup-result" class="mt-4 hidden max-h-64 overflow-auto rounded-lg border border-zinc-200 bg-zinc-900 p-3 text-xs text-zinc-100"></pre>
+  </section>
+  {% endif %}
+
+  {% if pack_inventory %}
+  <details open class="group rounded-2xl border border-zinc-200 bg-white shadow-sm">
+    <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 marker:content-none">
+      <div>
+        <h2 class="text-sm font-semibold text-zinc-900">Agent dependencies</h2>
+        <p class="mt-0.5 text-xs text-zinc-500">Install order and what each DeepAgent / AgentFlow requires from this pack.</p>
+      </div>
+      <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 group-open:hidden">Expand</span>
+      <span class="hidden rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 group-open:inline">Collapse</span>
+    </summary>
+    <div class="border-t border-zinc-100 px-5 pb-5 space-y-4">
+      <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+        <p class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Recommended install order</p>
+        <ol class="mt-2 flex flex-wrap gap-2">
+          {% for key in pack_inventory.install_order %}
+          <li class="rounded-lg border border-zinc-200 bg-white px-2.5 py-1 font-mono text-[11px] text-zinc-700">{{ key }}</li>
+          {% endfor %}
+        </ol>
+        <p class="mt-3 text-xs text-zinc-600">1. Role agents → 2. Deep agents (need sub-agents) → 3. AgentFlows (need agent aliases after install).</p>
+      </div>
+    </div>
+  </details>
+  {% endif %}
+
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+    <section class="lg:col-span-2 space-y-4">
+
+      {% if pack_inventory %}
+      <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-sm font-semibold text-zinc-900">Role agents <span class="font-normal text-zinc-400">({{ pack_inventory.summary.agents }})</span></h2>
+        </div>
+        <p class="mt-1 text-xs text-zinc-500">Single agents installed first; referenced by flows and deep coordinators.</p>
+        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+          {% for agent in pack_inventory.agents %}
+          <article class="rounded-xl border p-3 {% if agent.installed %}border-emerald-200 bg-emerald-50/50{% else %}border-sky-100 bg-sky-50/40{% endif %}">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <p class="truncate text-sm font-medium text-zinc-900">{{ agent.name }}</p>
+                  {{ installed_badge(agent) }}
+                </div>
+                <p class="mt-0.5 truncate font-mono text-[11px] text-zinc-500">
+                  {% if agent.installed and agent.installed_alias %}{{ agent.installed_alias }}{% else %}{{ agent.alias_suffix }}{% endif %}
+                </p>
+              </div>
+              <div class="flex shrink-0 flex-row items-center gap-1.5">
+                {{ resource_action_buttons(agent, 'agent') }}
+              </div>
+            </div>
+            {% if agent.required_by_deep_agents or agent.required_by_flows %}
+            <details class="mt-2">
+              <summary class="cursor-pointer text-[11px] font-medium text-zinc-600">Dependencies</summary>
+              <div class="mt-1 space-y-1 text-[11px] text-zinc-600">
+                {% if agent.required_by_deep_agents %}
+                <p><span class="font-medium text-violet-700">DeepAgent:</span>
+                  {% for d in agent.required_by_deep_agents %}{{ d.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+                </p>
+                {% endif %}
+                {% if agent.required_by_flows %}
+                <p><span class="font-medium text-emerald-700">AgentFlow:</span>
+                  {% for f in agent.required_by_flows %}{{ f.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+                </p>
+                {% endif %}
+              </div>
+            </details>
+            {% else %}
+            <p class="mt-2 text-[11px] text-zinc-500">{{ agent.skills_count }} skills · base role</p>
+            {% endif %}
+          </article>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <h2 class="text-sm font-semibold text-zinc-900">AgentFlows <span class="font-normal text-zinc-400">({{ pack_inventory.summary.flows }})</span></h2>
+        <p class="mt-1 text-xs text-zinc-500">Each flow lists agent nodes that must exist (by alias) after setup.</p>
+        <div class="mt-4 space-y-3">
+          {% for flow in pack_inventory.flows %}
+          <article class="rounded-xl border p-4 {% if flow.installed %}border-emerald-300 bg-emerald-50/60{% else %}border-emerald-100 bg-emerald-50/30{% endif %}">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <p class="text-sm font-semibold text-zinc-900">{{ flow.name }}</p>
+                  {{ installed_badge(flow) }}
+                </div>
+                <p class="mt-0.5 font-mono text-[11px] text-zinc-500">{{ flow.logical_key }}</p>
+              </div>
+              <div class="flex shrink-0 flex-row items-center gap-1.5">
+                {{ resource_action_buttons(flow, 'flow') }}
+              </div>
+            </div>
+            <details class="mt-3" open>
+              <summary class="cursor-pointer text-xs font-medium text-emerald-800">Required agents ({{ flow.required_agents|length }} nodes)</summary>
+              <ul class="mt-2 space-y-1.5">
+                {% for node in flow.required_agents %}
+                <li class="flex flex-wrap items-center gap-2 rounded-lg border border-white/80 bg-white/70 px-2 py-1.5 text-[11px]">
+                  <span class="font-medium text-zinc-800">{{ node.label or node.node_id }}</span>
+                  <code class="font-mono text-zinc-500">{{ node.agent_alias }}</code>
+                  {% if node.in_pack %}
+                  <span class="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800">in pack</span>
+                  {% else %}
+                  <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">external</span>
+                  {% endif %}
+                </li>
+                {% endfor %}
+              </ul>
+            </details>
+            {% if flow.optional_nodes %}
+            <details class="mt-2">
+              <summary class="cursor-pointer text-xs font-medium text-amber-700">Optional (other packs)</summary>
+              <ul class="mt-2 space-y-1 text-[11px] text-zinc-600">
+                {% for opt in flow.optional_nodes %}
+                <li class="rounded-lg border border-amber-100 bg-amber-50/50 px-2 py-1.5">
+                  <span class="font-medium">{{ opt.logical_key }}</span> from pack <code>{{ opt.pack }}</code>
+                  {% if opt.reason %}<span class="block text-zinc-500">{{ opt.reason }}</span>{% endif %}
+                </li>
+                {% endfor %}
+              </ul>
+            </details>
+            {% endif %}
+          </article>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-sm font-semibold text-slate-900">Role agents</h2>
+        <ul class="mt-4 grid gap-2 sm:grid-cols-2">
+          {% for name in pack.agents %}
+          <li class="rounded-lg border border-sky-100 bg-sky-50/50 px-3 py-2 text-sm">{{ name }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </section>
+
+    <aside class="space-y-4">
+      {% if pack_inventory %}
+      <div class="rounded-2xl border border-violet-200 bg-gradient-to-b from-violet-50 to-white p-5 shadow-sm">
+        <h2 class="text-sm font-semibold text-violet-900">Deep coordinators <span class="font-normal text-violet-500">({{ pack_inventory.summary.deep_agents }})</span></h2>
+        <p class="mt-1 text-xs text-violet-700/80">Requires sub-agents from this pack to be installed first.</p>
+        <div class="mt-4 space-y-3">
+          {% for deep in pack_inventory.deep_agents %}
+          <article class="rounded-xl border p-3 shadow-sm {% if deep.installed %}border-emerald-200 bg-emerald-50/40{% else %}border-violet-200 bg-white{% endif %}">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <p class="text-sm font-semibold text-zinc-900">{{ deep.name }}</p>
+                  {{ installed_badge(deep) }}
+                </div>
+                <p class="mt-0.5 font-mono text-[11px] text-zinc-500">
+                  {% if deep.installed and deep.installed_alias %}{{ deep.installed_alias }}{% else %}{{ deep.alias_suffix }}{% endif %}
+                </p>
+                <p class="mt-1 text-[11px] text-violet-700">{{ 'Parallel' if deep.is_async_subagents else 'Sequence' }} sub-agents</p>
+              </div>
+              <div class="flex shrink-0 flex-row items-center gap-1.5">
+                {{ resource_action_buttons(deep, 'deep_agent') }}
+              </div>
+            </div>
+            <details class="mt-3" open>
+              <summary class="cursor-pointer text-xs font-medium text-violet-800">Required sub-agents ({{ deep.sub_agent_count }})</summary>
+              <ul class="mt-2 space-y-1.5">
+                {% for sub in deep.required_sub_agents %}
+                <li class="rounded-lg border px-2 py-1.5 {% if sub.installed %}border-emerald-200 bg-emerald-50/80{% else %}border-violet-100 bg-violet-50/50{% endif %}">
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <p class="text-xs font-medium text-zinc-900">{{ sub.name }}</p>
+                    {% if sub.installed %}{{ installed_badge(sub) }}{% endif %}
+                  </div>
+                  <p class="font-mono text-[10px] text-zinc-500">
+                    {% if sub.installed and sub.installed_alias %}{{ sub.installed_alias }}{% else %}{{ sub.logical_key }}{% endif %}
+                  </p>
+                  {% if sub.in_pack and not sub.installed %}
+                  <span class="mt-1 inline-block rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800">in this pack</span>
+                  {% endif %}
+                </li>
+                {% endfor %}
+              </ul>
+            </details>
+            {% if deep.missing_sub_agents %}
+            <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
+              Missing in pack:
+              {% for m in deep.missing_sub_agents %}{{ m.logical_key }}{% if not loop.last %}, {% endif %}{% endfor %}
+            </div>
+            {% endif %}
+          </article>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+      <div class="rounded-2xl border border-violet-200 bg-gradient-to-b from-violet-50 to-white p-5 shadow-sm">
+        <h2 class="text-sm font-semibold text-violet-900">Deep coordinator</h2>
+        <ul class="mt-4 space-y-2">
+          {% for name in pack.deep_agents %}
+          <li class="rounded-xl border border-violet-200 bg-white px-3 py-3 text-sm font-semibold">{{ name }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Composition</h3>
+        <div class="mt-3 space-y-2 text-xs text-zinc-600">
+          <p>1. Install <strong class="text-zinc-800">role agents</strong> (single agents).</p>
+          <p>2. Install <strong class="text-zinc-800">deep agents</strong> with sub-agent links.</p>
+          <p>3. Install <strong class="text-zinc-800">AgentFlows</strong> with resolved aliases.</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  {% if installations %}
+  <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+    <h2 class="text-sm font-semibold text-zinc-900">Installation history</h2>
+    <ul class="mt-3 divide-y divide-zinc-100 text-sm">
+      {% for row in installations %}
+      <li class="flex justify-between py-2">
+        <span class="text-zinc-600">#{{ row.id }} · v{{ row.template_version }}</span>
+        <span class="capitalize font-medium text-zinc-700">{{ row.status }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+</div>
+
+<div id="install-confirm-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-zinc-900/50 p-4" role="dialog" aria-modal="true" aria-labelledby="install-confirm-title">
+  <div class="w-full max-w-md rounded-2xl border border-zinc-200 bg-white shadow-xl">
+    <div class="border-b border-zinc-100 px-5 py-4">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-indigo-600">Confirm install</p>
+      <h3 id="install-confirm-title" class="mt-1 text-lg font-semibold text-zinc-900">Install resource</h3>
+      <p id="install-confirm-subtitle" class="mt-1 text-sm text-zinc-600"></p>
+    </div>
+    <div class="space-y-3 px-5 py-4 text-sm">
+      <dl class="grid gap-2 rounded-xl border border-zinc-100 bg-zinc-50/80 p-3">
+        <div class="flex justify-between gap-3">
+          <dt class="text-zinc-500">Type</dt>
+          <dd id="install-confirm-type" class="font-medium text-zinc-800 text-right"></dd>
+        </div>
+        <div id="install-confirm-key-row" class="flex justify-between gap-3">
+          <dt class="text-zinc-500">Logical key</dt>
+          <dd id="install-confirm-key" class="font-mono text-[11px] text-zinc-700 text-right break-all"></dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="text-zinc-500">Alias prefix</dt>
+          <dd id="install-confirm-prefix" class="font-mono text-[11px] text-zinc-700"></dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="text-zinc-500">Tool profile</dt>
+          <dd id="install-confirm-profile" class="text-zinc-800"></dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="text-zinc-500">If alias exists</dt>
+          <dd id="install-confirm-conflict" class="text-zinc-800"></dd>
+        </div>
+      </dl>
+      <p id="install-confirm-hint" class="text-xs text-zinc-500"></p>
+      <p id="install-confirm-error" class="hidden rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800"></p>
+    </div>
+    <div class="flex justify-end gap-2 border-t border-zinc-100 px-5 py-4">
+      <button type="button" id="install-confirm-cancel" class="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
+      <button type="button" id="install-confirm-submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60">Install</button>
+    </div>
+  </div>
+</div>
+
+<div id="preview-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-4">
+  <div class="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-2xl border border-zinc-200 bg-white shadow-xl">
+    <div class="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-100 px-5 py-4">
+      <div class="min-w-0">
+        <p id="preview-type" class="text-[11px] font-semibold uppercase tracking-wider text-zinc-400"></p>
+        <h3 id="preview-title" class="truncate text-lg font-semibold text-zinc-900"></h3>
+        <p id="preview-file" class="mt-0.5 font-mono text-[11px] text-zinc-500"></p>
+      </div>
+      <button type="button" id="preview-close" class="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50">Close</button>
+    </div>
+    <div class="flex shrink-0 gap-1 border-b border-zinc-100 px-5 pt-2">
+      <button type="button" data-preview-tab="overview" class="preview-tab rounded-t-lg px-3 py-2 text-sm font-medium bg-white text-indigo-700 border border-b-0 border-zinc-200">Overview</button>
+      <button type="button" data-preview-tab="dependencies" class="preview-tab rounded-t-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900">Dependencies</button>
+      <button type="button" data-preview-tab="source" class="preview-tab rounded-t-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900">Source</button>
+      <button type="button" data-preview-tab="tree" class="preview-tab hidden rounded-t-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900">JSON tree</button>
+    </div>
+    <div class="min-h-0 flex-1 overflow-y-auto p-5">
+      <div id="preview-panel-overview" class="preview-panel space-y-3 text-sm text-zinc-700"></div>
+      <div id="preview-panel-dependencies" class="preview-panel hidden"></div>
+      <pre id="preview-panel-source" class="preview-panel hidden max-h-[60vh] overflow-auto rounded-xl bg-zinc-900 p-4 text-xs leading-relaxed text-zinc-100"></pre>
+      <div id="preview-panel-tree" class="preview-panel hidden max-h-[60vh] overflow-auto rounded-xl border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if pack_on_disk %}
+<script>
+(function () {
+  const PACK_KEY = {{ pack_key | tojson }};
+  const PACK_NAME = {{ pack.name | tojson }};
+
+  const panel = document.getElementById("setup-panel");
+  const form = document.getElementById("setup-form");
+  const resultEl = document.getElementById("setup-result");
+  document.getElementById("open-setup-panel")?.addEventListener("click", () => panel.classList.toggle("hidden"));
+
+  function payloadFromForm(dryRun) {
+    const fd = new FormData(form);
+    return {
+      alias_prefix: fd.get("alias_prefix") || "it",
+      tool_profile: fd.get("tool_profile") || "read_only",
+      flow_status: fd.get("flow_status") || "draft",
+      on_alias_conflict: fd.get("on_alias_conflict") || "fail",
+      dry_run: dryRun,
+    };
+  }
+
+  async function runInstall(dryRun) {
+    resultEl.classList.remove("hidden");
+    resultEl.textContent = "Loading…";
+    const url = dryRun
+      ? `/agent-setup-packs/api/packs/${PACK_KEY}/dry-run`
+      : `/agent-setup-packs/api/packs/${PACK_KEY}/install`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payloadFromForm(dryRun)),
+    });
+    const data = await res.json();
+    resultEl.textContent = JSON.stringify(data, null, 2);
+    if (!dryRun && res.ok) window.location.reload();
+  }
+
+  document.getElementById("dry-run-btn")?.addEventListener("click", () => runInstall(true));
+
+  const confirmModal = document.getElementById("install-confirm-modal");
+  const confirmTitle = document.getElementById("install-confirm-title");
+  const confirmSubtitle = document.getElementById("install-confirm-subtitle");
+  const confirmType = document.getElementById("install-confirm-type");
+  const confirmKeyRow = document.getElementById("install-confirm-key-row");
+  const confirmKey = document.getElementById("install-confirm-key");
+  const confirmPrefix = document.getElementById("install-confirm-prefix");
+  const confirmProfile = document.getElementById("install-confirm-profile");
+  const confirmConflict = document.getElementById("install-confirm-conflict");
+  const confirmHint = document.getElementById("install-confirm-hint");
+  const confirmError = document.getElementById("install-confirm-error");
+  const confirmSubmit = document.getElementById("install-confirm-submit");
+  const confirmCancel = document.getElementById("install-confirm-cancel");
+
+  let pendingInstall = null;
+
+  function formatResourceType(rtype) {
+    const map = { agent: "Agent", deep_agent: "Deep agent", flow: "AgentFlow" };
+    return map[rtype] || rtype;
+  }
+
+  function installHintFor(rtype) {
+    if (rtype === "deep_agent") {
+      return "Sub-agents from this pack must already be installed with the same alias prefix.";
+    }
+    if (rtype === "flow") {
+      return "Every agent node in the flow must already exist in the database (install role agents first).";
+    }
+    return "A new agent row will be created with prompts, skills, and tool settings from the pack file.";
+  }
+
+  function openInstallConfirm(pending) {
+    pendingInstall = pending;
+    const opts = payloadFromForm(false);
+    const isFull = pending.mode === "full";
+
+    confirmTitle.textContent = isFull ? `Install ${PACK_NAME}` : pending.label;
+    confirmSubtitle.textContent = isFull
+      ? "Install all agents, deep coordinators, and flows from this pack."
+      : `Install one ${formatResourceType(pending.rtype).toLowerCase()} from this pack.`;
+    confirmType.textContent = isFull ? "Full pack" : formatResourceType(pending.rtype);
+    confirmKeyRow?.classList.toggle("hidden", isFull);
+    if (confirmKey) confirmKey.textContent = pending.logicalKey || "";
+    confirmPrefix.textContent = opts.alias_prefix;
+    confirmProfile.textContent = opts.tool_profile.replace(/_/g, " ");
+    confirmConflict.textContent = opts.on_alias_conflict;
+    confirmHint.textContent = isFull
+      ? "Recommended order: role agents → deep agents → flows. This run installs everything in one batch."
+      : installHintFor(pending.rtype);
+    confirmError.classList.add("hidden");
+    confirmError.textContent = "";
+    confirmSubmit.disabled = false;
+    confirmSubmit.textContent = "Install";
+    confirmModal?.classList.remove("hidden");
+  }
+
+  function closeInstallConfirm() {
+    confirmModal?.classList.add("hidden");
+    pendingInstall = null;
+  }
+
+  confirmCancel?.addEventListener("click", closeInstallConfirm);
+  confirmModal?.addEventListener("click", (e) => {
+    if (e.target === confirmModal) closeInstallConfirm();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && confirmModal && !confirmModal.classList.contains("hidden")) {
+      closeInstallConfirm();
+    }
+  });
+
+  async function executePendingInstall() {
+    if (!pendingInstall) return;
+    const pending = pendingInstall;
+    const opts = payloadFromForm(false);
+
+    confirmSubmit.disabled = true;
+    confirmSubmit.textContent = "Installing…";
+    if (pending.triggerBtn) pending.triggerBtn.disabled = true;
+
+    panel?.classList.remove("hidden");
+    resultEl?.classList.remove("hidden");
+    resultEl.textContent = "Installing…";
+
+    const url = pending.mode === "full"
+      ? `/agent-setup-packs/api/packs/${PACK_KEY}/install`
+      : `/agent-setup-packs/api/packs/${PACK_KEY}/resources/${pending.rtype}/${encodeURIComponent(pending.logicalKey)}/install`;
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(opts),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        closeInstallConfirm();
+        resultEl.textContent = JSON.stringify(data, null, 2);
+        window.location.reload();
+        return;
+      }
+      const detail = data.detail || (data.plan && data.plan.errors && data.plan.errors.join("; ")) || "Install failed.";
+      confirmError.textContent = typeof detail === "string" ? detail : JSON.stringify(detail);
+      confirmError.classList.remove("hidden");
+      resultEl.textContent = JSON.stringify(data, null, 2);
+    } catch (err) {
+      confirmError.textContent = String(err);
+      confirmError.classList.remove("hidden");
+      resultEl.textContent = String(err);
+    } finally {
+      confirmSubmit.disabled = false;
+      confirmSubmit.textContent = "Install";
+      if (pending.triggerBtn) pending.triggerBtn.disabled = false;
+    }
+  }
+
+  confirmSubmit?.addEventListener("click", () => executePendingInstall());
+
+  document.getElementById("install-btn")?.addEventListener("click", () => {
+    openInstallConfirm({ mode: "full" });
+  });
+
+  document.querySelectorAll(".install-one-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const rtype = btn.dataset.resourceType;
+      const logicalKey = btn.dataset.logicalKey;
+      const label = btn.dataset.resourceLabel || logicalKey;
+      if (!rtype || !logicalKey) return;
+      openInstallConfirm({
+        mode: "single",
+        rtype,
+        logicalKey,
+        label,
+        triggerBtn: btn,
+      });
+    });
+  });
+
+  const modal = document.getElementById("preview-modal");
+  const previewTitle = document.getElementById("preview-title");
+  const previewType = document.getElementById("preview-type");
+  const previewFile = document.getElementById("preview-file");
+  const previewSource = document.getElementById("preview-panel-source");
+  const previewOverview = document.getElementById("preview-panel-overview");
+  const previewDeps = document.getElementById("preview-panel-dependencies");
+  const previewTree = document.getElementById("preview-panel-tree");
+  const treeTabBtn = document.querySelector('[data-preview-tab="tree"]');
+
+  document.getElementById("preview-close")?.addEventListener("click", () => modal.classList.add("hidden"));
+  modal?.addEventListener("click", (e) => { if (e.target === modal) modal.classList.add("hidden"); });
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function renderJsonTree(value, key) {
+    const label = key !== undefined ? `<span class="text-violet-700">${escapeHtml(key)}</span>: ` : "";
+    if (value === null) return `${label}<span class="text-zinc-400">null</span>`;
+    if (typeof value !== "object") {
+      const v = typeof value === "string" ? `"${escapeHtml(value)}"` : escapeHtml(value);
+      return `${label}<span class="text-emerald-700">${v}</span>`;
+    }
+    const isArr = Array.isArray(value);
+    const entries = isArr ? value.map((v, i) => [i, v]) : Object.entries(value);
+    if (!entries.length) return `${label}<span class="text-zinc-400">${isArr ? "[]" : "{}"}</span>`;
+    let html = `${label}<details open class="inline"><summary class="cursor-pointer text-zinc-500">${isArr ? "[…]" : "{…}"}</summary><div class="ml-4 border-l border-zinc-200 pl-2">`;
+    for (const [k, v] of entries) {
+      html += `<div class="py-0.5">${renderJsonTree(v, k)}</div>`;
+    }
+    html += "</div></details>";
+    return html;
+  }
+
+  function showPreviewTab(name) {
+    document.querySelectorAll(".preview-panel").forEach((el) => el.classList.add("hidden"));
+    document.querySelectorAll(".preview-tab").forEach((btn) => {
+      const active = btn.dataset.previewTab === name;
+      btn.classList.toggle("bg-white", active);
+      btn.classList.toggle("text-indigo-700", active);
+      btn.classList.toggle("border", active);
+      btn.classList.toggle("border-b-0", active);
+      btn.classList.toggle("border-zinc-200", active);
+      btn.classList.toggle("text-zinc-600", !active);
+    });
+    const panelMap = {
+      overview: previewOverview,
+      dependencies: previewDeps,
+      source: previewSource,
+      tree: previewTree,
+    };
+    panelMap[name]?.classList.remove("hidden");
+  }
+
+  document.querySelectorAll(".preview-tab").forEach((btn) => {
+    btn.addEventListener("click", () => showPreviewTab(btn.dataset.previewTab));
+  });
+
+  function renderOverview(data) {
+    const s = data.summary || {};
+    let html = "<dl class=\"grid gap-2 sm:grid-cols-2\">";
+    for (const [k, v] of Object.entries(s)) {
+      const val = Array.isArray(v) ? v.join(", ") : String(v ?? "");
+      html += `<div><dt class="text-xs font-medium text-zinc-500">${escapeHtml(k)}</dt><dd class="text-sm text-zinc-800">${escapeHtml(val)}</dd></div>`;
+    }
+    html += "</dl>";
+    previewOverview.innerHTML = html;
+  }
+
+  function renderDependencies(deps) {
+    if (!deps || !Object.keys(deps).length) {
+      previewDeps.innerHTML = "<p class=\"text-sm text-zinc-500\">No dependency metadata.</p>";
+      return;
+    }
+    previewDeps.innerHTML = `<pre class="rounded-xl bg-zinc-50 p-3 text-xs text-zinc-800 overflow-auto">${escapeHtml(JSON.stringify(deps, null, 2))}</pre>`;
+  }
+
+  document.querySelectorAll(".preview-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const rtype = btn.dataset.resourceType;
+      const lkey = btn.dataset.logicalKey;
+      modal.classList.remove("hidden");
+      previewTitle.textContent = "Loading…";
+      previewType.textContent = rtype;
+      previewOverview.innerHTML = "<p class=\"text-zinc-500\">Loading…</p>";
+      showPreviewTab("overview");
+
+      const res = await fetch(`/agent-setup-packs/api/packs/${PACK_KEY}/preview/${rtype}/${lkey}`);
+      const data = await res.json();
+      if (!res.ok) {
+        previewTitle.textContent = "Error";
+        previewOverview.innerHTML = `<p class="text-red-600">${escapeHtml(data.detail || "Failed to load")}</p>`;
+        return;
+      }
+      previewTitle.textContent = data.title || lkey;
+      previewType.textContent = data.resource_type;
+      previewFile.textContent = data.source_file ? `File: ${data.source_file}` : "";
+      previewSource.textContent = data.content || "";
+      renderOverview(data);
+      renderDependencies(data.dependencies);
+      if (data.format === "json" && data.structured) {
+        treeTabBtn.classList.remove("hidden");
+        previewTree.innerHTML = renderJsonTree(data.structured);
+      } else {
+        treeTabBtn.classList.add("hidden");
+      }
+    });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

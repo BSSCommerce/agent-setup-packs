@@ -1,0 +1,127 @@
+{
+  "version": "1",
+  "logical_key": "customer_ticket_to_engineering_escalation",
+  "name": "Customer Ticket To Engineering Escalation",
+  "description": "Convert a customer ticket into KB context, reproduction guide, engineering escalation, and customer response draft.",
+  "status": "draft",
+  "alias_prefix": "cs",
+  "approval_notes": [
+    "Before sending customer-facing response",
+    "Before creating high-priority engineering ticket",
+    "Before requesting production tenant access"
+  ],
+  "substitutions": {
+    "note": "Research includes QA Test Planner and Solution Architect/Backend Engineer; install delivery_core optional_nodes for those roles."
+  },
+  "optional_nodes": [
+    {
+      "insert_after": "kb",
+      "insert_before": "repro",
+      "pack": "engineering_delivery_core",
+      "logical_key": "qa_test_planner",
+      "reason": "Research flow includes QA Test Planner after knowledge search."
+    },
+    {
+      "insert_after": "repro",
+      "insert_before": "escalation",
+      "pack": "engineering_delivery_core",
+      "logical_key": "solution_architect",
+      "reason": "Research flow includes technical analysis before engineering escalation."
+    }
+  ],
+  "flow": {
+    "start_node_id": "summarize",
+    "nodes": [
+      {
+        "id": "summarize",
+        "name": "Issue Summary",
+        "type": "agent",
+        "label": "Summary",
+        "agent_alias": "cs_customer_issue_summarizer",
+        "input_mappings": []
+      },
+      {
+        "id": "kb",
+        "name": "Knowledge Search",
+        "type": "agent",
+        "label": "KB",
+        "agent_alias": "cs_support_knowledge_search_agent",
+        "input_mappings": [
+          {
+            "source_node_id": "summarize",
+            "source_path": "output_json",
+            "target_field": "issue_summary"
+          }
+        ]
+      },
+      {
+        "id": "repro",
+        "name": "Reproduction Guide",
+        "type": "agent",
+        "label": "Repro",
+        "agent_alias": "cs_reproduction_guide_writer",
+        "input_mappings": [
+          {
+            "source_node_id": "summarize",
+            "source_path": "output_json",
+            "target_field": "issue_summary"
+          },
+          {
+            "source_node_id": "kb",
+            "source_path": "output_json",
+            "target_field": "kb_results"
+          }
+        ]
+      },
+      {
+        "id": "escalation",
+        "name": "Engineering Escalation",
+        "type": "agent",
+        "label": "Escalation",
+        "agent_alias": "cs_engineering_escalation_drafter",
+        "input_mappings": [
+          {
+            "source_node_id": "summarize",
+            "source_path": "output_json",
+            "target_field": "issue_summary"
+          },
+          {
+            "source_node_id": "repro",
+            "source_path": "output_json",
+            "target_field": "reproduction_guide"
+          }
+        ]
+      },
+      {
+        "id": "response",
+        "name": "Customer Response",
+        "type": "agent",
+        "label": "Response",
+        "agent_alias": "cs_customer_response_writer",
+        "input_mappings": [
+          {
+            "source_node_id": "summarize",
+            "source_path": "output_json",
+            "target_field": "issue_summary"
+          },
+          {
+            "source_node_id": "kb",
+            "source_path": "output_json",
+            "target_field": "kb_results"
+          },
+          {
+            "source_node_id": "escalation",
+            "source_path": "output_json",
+            "target_field": "escalation_status"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_sum_kb", "source": "summarize", "target": "kb"},
+      {"id": "e_kb_rep", "source": "kb", "target": "repro"},
+      {"id": "e_rep_esc", "source": "repro", "target": "escalation"},
+      {"id": "e_esc_res", "source": "escalation", "target": "response"}
+    ]
+  }
+}

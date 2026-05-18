@@ -1,0 +1,97 @@
+{
+  "version": "1",
+  "logical_key": "change_request_review",
+  "name": "Change Request Review",
+  "description": "Assess planned production changes: intake, telemetry correlation, risk review, and runbook pre-checks before CAB.",
+  "status": "draft",
+  "alias_prefix": "ops",
+  "approval_notes": [
+    "CAB approval before execution",
+    "Additional approval for high-risk or critical changes"
+  ],
+  "substitutions": {
+    "change_intake": "incident_triage_analyst",
+    "note": "Research uses Product Requirements Analyst for request summary; this pack uses incident triage analyst for structured change intake."
+  },
+  "optional_nodes": [
+    {
+      "insert_after": "change_risk",
+      "insert_before": "runbook",
+      "pack": "security_compliance",
+      "logical_key": "security_review_lead",
+      "reason": "Research flow includes Security Review Lead before release; install security pack to insert node."
+    },
+    {
+      "insert_after": "runbook",
+      "insert_before": null,
+      "pack": "engineering_delivery_core",
+      "logical_key": "release_manager",
+      "reason": "Research flow ends with Release Manager go/no-go; install delivery_core pack to append release node."
+    }
+  ],
+  "flow": {
+    "start_node_id": "intake",
+    "nodes": [
+      {
+        "id": "intake",
+        "name": "Change Intake",
+        "type": "agent",
+        "label": "Intake",
+        "agent_alias": "ops_incident_triage_analyst",
+        "input_mappings": []
+      },
+      {
+        "id": "telemetry",
+        "name": "Recent Changes Correlation",
+        "type": "agent",
+        "label": "Telemetry",
+        "agent_alias": "ops_logs_and_metrics_investigator",
+        "input_mappings": [
+          {
+            "source_node_id": "intake",
+            "source_path": "output_json",
+            "target_field": "change_request"
+          }
+        ]
+      },
+      {
+        "id": "change_risk",
+        "name": "Change Risk",
+        "type": "agent",
+        "label": "Risk",
+        "agent_alias": "ops_change_risk_analyst",
+        "input_mappings": [
+          {
+            "source_node_id": "intake",
+            "source_path": "output_json",
+            "target_field": "change_request"
+          },
+          {
+            "source_node_id": "telemetry",
+            "source_path": "output_json",
+            "target_field": "recent_changes"
+          }
+        ]
+      },
+      {
+        "id": "runbook",
+        "name": "Execution Pre-Checks",
+        "type": "agent",
+        "label": "Runbook",
+        "agent_alias": "ops_runbook_executor",
+        "input_mappings": [
+          {
+            "source_node_id": "change_risk",
+            "source_path": "output_json",
+            "target_field": "risk_assessment"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_in_tel", "source": "intake", "target": "telemetry"},
+      {"id": "e_tel_risk", "source": "telemetry", "target": "change_risk"},
+      {"id": "e_risk_rb", "source": "change_risk", "target": "runbook"}
+    ]
+  }
+}

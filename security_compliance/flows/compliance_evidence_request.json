@@ -1,0 +1,118 @@
+{
+  "version": "1",
+  "logical_key": "compliance_evidence_request",
+  "name": "Compliance Evidence Request",
+  "description": "Respond to audit or compliance requests: scope intake, policy mapping, access evidence, and technical control validation.",
+  "status": "draft",
+  "alias_prefix": "sec",
+  "approval_notes": [
+    "Before exporting evidence bundles to auditors or third parties",
+    "Before sharing customer or employee regulated data",
+    "Before marking controls as fully satisfied"
+  ],
+  "flow": {
+    "start_node_id": "intake",
+    "nodes": [
+      {
+        "id": "intake",
+        "name": "Evidence Intake",
+        "type": "agent",
+        "label": "Intake",
+        "agent_alias": "sec_compliance_evidence_collector",
+        "input_mappings": []
+      },
+      {
+        "id": "policy",
+        "name": "Policy Mapping",
+        "type": "agent",
+        "label": "Policy",
+        "agent_alias": "sec_security_policy_reviewer",
+        "input_mappings": [
+          {
+            "source_node_id": "intake",
+            "source_path": "output_json",
+            "target_field": "evidence_request"
+          }
+        ]
+      },
+      {
+        "id": "access",
+        "name": "Access Evidence",
+        "type": "agent",
+        "label": "Access",
+        "agent_alias": "sec_access_review_analyst",
+        "input_mappings": [
+          {
+            "source_node_id": "intake",
+            "source_path": "output_json",
+            "target_field": "evidence_request"
+          },
+          {
+            "source_node_id": "policy",
+            "source_path": "output_json",
+            "target_field": "policy_mapping"
+          }
+        ]
+      },
+      {
+        "id": "technical",
+        "name": "Technical Controls",
+        "type": "agent",
+        "label": "Technical",
+        "agent_alias": "sec_threat_modeling_analyst",
+        "input_mappings": [
+          {
+            "source_node_id": "intake",
+            "source_path": "output_json",
+            "target_field": "evidence_request"
+          },
+          {
+            "source_node_id": "policy",
+            "source_path": "output_json",
+            "target_field": "policy_mapping"
+          },
+          {
+            "source_node_id": "access",
+            "source_path": "output_json",
+            "target_field": "access_evidence"
+          }
+        ]
+      },
+      {
+        "id": "package",
+        "name": "Evidence Package",
+        "type": "agent",
+        "label": "Package",
+        "agent_alias": "sec_compliance_evidence_collector",
+        "input_mappings": [
+          {
+            "source_node_id": "intake",
+            "source_path": "output_json",
+            "target_field": "initial_intake"
+          },
+          {
+            "source_node_id": "policy",
+            "source_path": "output_json",
+            "target_field": "policy_mapping"
+          },
+          {
+            "source_node_id": "access",
+            "source_path": "output_json",
+            "target_field": "access_evidence"
+          },
+          {
+            "source_node_id": "technical",
+            "source_path": "output_json",
+            "target_field": "technical_controls"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_in_pol", "source": "intake", "target": "policy"},
+      {"id": "e_pol_acc", "source": "policy", "target": "access"},
+      {"id": "e_acc_tech", "source": "access", "target": "technical"},
+      {"id": "e_tech_pkg", "source": "technical", "target": "package"}
+    ]
+  }
+}

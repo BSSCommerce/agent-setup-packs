@@ -1,0 +1,92 @@
+{
+  "version": "1",
+  "logical_key": "access_request_review",
+  "name": "Access Request Review",
+  "description": "Review employee access requests: triage, policy/KB lookup, access analysis, and SLA-aware routing.",
+  "status": "draft",
+  "alias_prefix": "desk",
+  "approval_notes": [
+    "Before provisioning access or role changes",
+    "Before privileged or production entitlements",
+    "Before denying access without manager review"
+  ],
+  "optional_nodes": [
+    {
+      "insert_after": "access",
+      "insert_before": "sla",
+      "pack": "security_compliance",
+      "logical_key": "access_review_analyst",
+      "reason": "Install security_compliance pack for formal IAM/access certification review node."
+    }
+  ],
+  "flow": {
+    "start_node_id": "triage",
+    "nodes": [
+      {
+        "id": "triage",
+        "name": "Request Intake",
+        "type": "agent",
+        "label": "Intake",
+        "agent_alias": "desk_ticket_triage_agent",
+        "input_mappings": []
+      },
+      {
+        "id": "kb",
+        "name": "Policy & KB Lookup",
+        "type": "agent",
+        "label": "KB",
+        "agent_alias": "desk_knowledge_base_search_agent",
+        "input_mappings": [
+          {
+            "source_node_id": "triage",
+            "source_path": "output_json",
+            "target_field": "ticket"
+          }
+        ]
+      },
+      {
+        "id": "access",
+        "name": "Access Analysis",
+        "type": "agent",
+        "label": "Access",
+        "agent_alias": "desk_access_request_analyst",
+        "input_mappings": [
+          {
+            "source_node_id": "triage",
+            "source_path": "output_json",
+            "target_field": "ticket"
+          },
+          {
+            "source_node_id": "kb",
+            "source_path": "output_json",
+            "target_field": "policy_docs"
+          }
+        ]
+      },
+      {
+        "id": "sla",
+        "name": "SLA & Escalation",
+        "type": "agent",
+        "label": "SLA",
+        "agent_alias": "desk_sla_escalation_agent",
+        "input_mappings": [
+          {
+            "source_node_id": "triage",
+            "source_path": "output_json",
+            "target_field": "ticket"
+          },
+          {
+            "source_node_id": "access",
+            "source_path": "output_json",
+            "target_field": "access_review"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_tri_kb", "source": "triage", "target": "kb"},
+      {"id": "e_kb_acc", "source": "kb", "target": "access"},
+      {"id": "e_acc_sla", "source": "access", "target": "sla"}
+    ]
+  }
+}

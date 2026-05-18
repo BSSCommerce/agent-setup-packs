@@ -1,0 +1,83 @@
+{
+  "version": "1",
+  "logical_key": "known_issue_article_draft",
+  "name": "Known Issue Article Draft",
+  "description": "Draft a known-issue article and customer workaround from ticket pattern, KB research, and reproduction steps.",
+  "status": "draft",
+  "alias_prefix": "cs",
+  "approval_notes": [
+    "Before publishing public known-issue article",
+    "Before announcing workaround to all affected customers",
+    "Before linking article in mass communication"
+  ],
+  "flow": {
+    "start_node_id": "summarize",
+    "nodes": [
+      {
+        "id": "summarize",
+        "name": "Issue Pattern",
+        "type": "agent",
+        "label": "Pattern",
+        "agent_alias": "cs_customer_issue_summarizer",
+        "input_mappings": []
+      },
+      {
+        "id": "kb",
+        "name": "KB Research",
+        "type": "agent",
+        "label": "KB",
+        "agent_alias": "cs_support_knowledge_search_agent",
+        "input_mappings": [
+          {
+            "source_node_id": "summarize",
+            "source_path": "output_json",
+            "target_field": "issue_pattern"
+          }
+        ]
+      },
+      {
+        "id": "repro",
+        "name": "Reproduction & Workaround Steps",
+        "type": "agent",
+        "label": "Repro",
+        "agent_alias": "cs_reproduction_guide_writer",
+        "input_mappings": [
+          {
+            "source_node_id": "summarize",
+            "source_path": "output_json",
+            "target_field": "issue_pattern"
+          },
+          {
+            "source_node_id": "kb",
+            "source_path": "output_json",
+            "target_field": "existing_articles"
+          }
+        ]
+      },
+      {
+        "id": "article",
+        "name": "Customer Workaround Text",
+        "type": "agent",
+        "label": "Workaround",
+        "agent_alias": "cs_customer_response_writer",
+        "input_mappings": [
+          {
+            "source_node_id": "kb",
+            "source_path": "output_json",
+            "target_field": "kb_results"
+          },
+          {
+            "source_node_id": "repro",
+            "source_path": "output_json",
+            "target_field": "reproduction_and_workaround"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_sum_kb", "source": "summarize", "target": "kb"},
+      {"id": "e_kb_rep", "source": "kb", "target": "repro"},
+      {"id": "e_rep_art", "source": "repro", "target": "article"}
+    ]
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "version": "1",
+  "logical_key": "ticket_triage_and_resolution",
+  "name": "Ticket Triage And Resolution",
+  "description": "ITIL-style path: triage, knowledge search, endpoint troubleshooting, and SLA escalation if needed.",
+  "status": "draft",
+  "alias_prefix": "desk",
+  "approval_notes": [
+    "Before sending user-facing responses",
+    "Before reassigning ticket or changing priority",
+    "Before major incident or executive escalation"
+  ],
+  "flow": {
+    "start_node_id": "triage",
+    "nodes": [
+      {
+        "id": "triage",
+        "name": "Ticket Triage",
+        "type": "agent",
+        "label": "Triage",
+        "agent_alias": "desk_ticket_triage_agent",
+        "input_mappings": []
+      },
+      {
+        "id": "kb",
+        "name": "Knowledge Search",
+        "type": "agent",
+        "label": "KB",
+        "agent_alias": "desk_knowledge_base_search_agent",
+        "input_mappings": [
+          {
+            "source_node_id": "triage",
+            "source_path": "output_json",
+            "target_field": "ticket"
+          }
+        ]
+      },
+      {
+        "id": "endpoint",
+        "name": "Endpoint Support",
+        "type": "agent",
+        "label": "Endpoint",
+        "agent_alias": "desk_hardware_software_support_agent",
+        "input_mappings": [
+          {
+            "source_node_id": "triage",
+            "source_path": "output_json",
+            "target_field": "ticket"
+          },
+          {
+            "source_node_id": "kb",
+            "source_path": "output_json",
+            "target_field": "kb_results"
+          }
+        ]
+      },
+      {
+        "id": "sla",
+        "name": "SLA Check",
+        "type": "agent",
+        "label": "SLA",
+        "agent_alias": "desk_sla_escalation_agent",
+        "input_mappings": [
+          {
+            "source_node_id": "triage",
+            "source_path": "output_json",
+            "target_field": "ticket"
+          },
+          {
+            "source_node_id": "endpoint",
+            "source_path": "output_json",
+            "target_field": "resolution_attempt"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_tri_kb", "source": "triage", "target": "kb"},
+      {"id": "e_kb_end", "source": "kb", "target": "endpoint"},
+      {"id": "e_end_sla", "source": "endpoint", "target": "sla"}
+    ]
+  }
+}

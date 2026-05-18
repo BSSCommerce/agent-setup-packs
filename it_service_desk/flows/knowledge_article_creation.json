@@ -1,0 +1,98 @@
+{
+  "version": "1",
+  "logical_key": "knowledge_article_creation",
+  "name": "Knowledge Article Creation",
+  "description": "Turn recurring ticket patterns into a KB article draft: triage pattern, research duplicates, draft article, SLA/publish gate.",
+  "status": "draft",
+  "alias_prefix": "desk",
+  "approval_notes": [
+    "Before publishing or editing KB articles",
+    "Before retiring duplicate articles",
+    "Before announcing article to all users"
+  ],
+  "flow": {
+    "start_node_id": "pattern",
+    "nodes": [
+      {
+        "id": "pattern",
+        "name": "Ticket Pattern",
+        "type": "agent",
+        "label": "Pattern",
+        "agent_alias": "desk_ticket_triage_agent",
+        "input_mappings": []
+      },
+      {
+        "id": "research",
+        "name": "KB Research",
+        "type": "agent",
+        "label": "Research",
+        "agent_alias": "desk_knowledge_base_search_agent",
+        "input_mappings": [
+          {
+            "source_node_id": "pattern",
+            "source_path": "output_json",
+            "target_field": "ticket_pattern"
+          }
+        ]
+      },
+      {
+        "id": "draft",
+        "name": "Article Draft",
+        "type": "agent",
+        "label": "Draft",
+        "agent_alias": "desk_knowledge_base_search_agent",
+        "input_mappings": [
+          {
+            "source_node_id": "pattern",
+            "source_path": "output_json",
+            "target_field": "ticket_pattern"
+          },
+          {
+            "source_node_id": "research",
+            "source_path": "output_json",
+            "target_field": "existing_articles"
+          }
+        ]
+      },
+      {
+        "id": "technical",
+        "name": "Technical Steps",
+        "type": "agent",
+        "label": "Technical",
+        "agent_alias": "desk_hardware_software_support_agent",
+        "input_mappings": [
+          {
+            "source_node_id": "pattern",
+            "source_path": "output_json",
+            "target_field": "ticket_pattern"
+          },
+          {
+            "source_node_id": "draft",
+            "source_path": "output_json",
+            "target_field": "article_outline"
+          }
+        ]
+      },
+      {
+        "id": "publish_gate",
+        "name": "Publish Gate",
+        "type": "agent",
+        "label": "Publish",
+        "agent_alias": "desk_sla_escalation_agent",
+        "input_mappings": [
+          {
+            "source_node_id": "draft",
+            "source_path": "output_json",
+            "target_field": "article_draft"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_pat_res", "source": "pattern", "target": "research"},
+      {"id": "e_res_draft", "source": "research", "target": "draft"},
+      {"id": "e_draft_tech", "source": "draft", "target": "technical"},
+      {"id": "e_tech_pub", "source": "technical", "target": "publish_gate"}
+    ]
+  }
+}

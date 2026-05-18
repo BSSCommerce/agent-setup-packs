@@ -1,0 +1,88 @@
+{
+  "version": "1",
+  "logical_key": "metrics_definition_review",
+  "name": "Metrics Definition Review",
+  "description": "Review and specify metrics for dashboards: clarify definitions, draft dashboard spec, validate quality, narrate for stakeholders.",
+  "status": "draft",
+  "alias_prefix": "data",
+  "approval_notes": [
+    "Before publishing new canonical metric definitions",
+    "Before building customer-facing dashboards",
+    "Before sharing metric catalog externally"
+  ],
+  "flow": {
+    "start_node_id": "clarify",
+    "nodes": [
+      {
+        "id": "clarify",
+        "name": "Metric Definitions",
+        "type": "agent",
+        "label": "Metrics",
+        "agent_alias": "data_data_request_clarifier",
+        "input_mappings": []
+      },
+      {
+        "id": "dashboard",
+        "name": "Dashboard Spec",
+        "type": "agent",
+        "label": "Dashboard",
+        "agent_alias": "data_dashboard_specification_writer",
+        "input_mappings": [
+          {
+            "source_node_id": "clarify",
+            "source_path": "output_json",
+            "target_field": "metric_definitions"
+          }
+        ]
+      },
+      {
+        "id": "quality",
+        "name": "Definition Quality",
+        "type": "agent",
+        "label": "Quality",
+        "agent_alias": "data_data_quality_validator",
+        "input_mappings": [
+          {
+            "source_node_id": "clarify",
+            "source_path": "output_json",
+            "target_field": "metric_definitions"
+          },
+          {
+            "source_node_id": "dashboard",
+            "source_path": "output_json",
+            "target_field": "dashboard_spec"
+          }
+        ]
+      },
+      {
+        "id": "narrate",
+        "name": "Stakeholder Brief",
+        "type": "agent",
+        "label": "Brief",
+        "agent_alias": "data_insight_narrator",
+        "input_mappings": [
+          {
+            "source_node_id": "clarify",
+            "source_path": "output_json",
+            "target_field": "metric_definitions"
+          },
+          {
+            "source_node_id": "dashboard",
+            "source_path": "output_json",
+            "target_field": "dashboard_spec"
+          },
+          {
+            "source_node_id": "quality",
+            "source_path": "output_json",
+            "target_field": "quality_review"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_cl_dash", "source": "clarify", "target": "dashboard"},
+      {"id": "e_dash_q", "source": "dashboard", "target": "quality"},
+      {"id": "e_q_nar", "source": "quality", "target": "narrate"}
+    ]
+  }
+}

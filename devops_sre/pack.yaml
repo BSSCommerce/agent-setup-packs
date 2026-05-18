@@ -1,0 +1,8 @@
+# Pack metadata (installer reads this + agents/, deep_agents/, flows/)
+version: "0.1.0"
+slug: devops_sre
+catalog_key: devops_sre_operations
+name: DevOps & SRE Operations
+description: >-
+  Incident response, change risk review, runbook execution planning, and
+  post-incident reviews for platform and SRE teams.

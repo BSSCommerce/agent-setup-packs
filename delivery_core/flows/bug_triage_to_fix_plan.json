@@ -1,0 +1,130 @@
+{
+  "version": "1",
+  "logical_key": "bug_triage_to_fix_plan",
+  "name": "Bug Triage To Fix Plan",
+  "description": "Turn a bug report into reproduction steps, root-cause hypothesis, fix plan, regression tests, and review.",
+  "status": "draft",
+  "alias_prefix": "it",
+  "approval_notes": [
+    "If bug requires production data access",
+    "If fix requires schema migration",
+    "If severity is high or customer impact is broad"
+  ],
+  "substitutions": {
+    "triage_agent": "product_requirements_analyst",
+    "note": "Research allows Ticket Triage Agent from it_service_desk pack; this pack uses requirements analyst for intake."
+  },
+  "flow": {
+    "start_node_id": "triage",
+    "nodes": [
+      {
+        "id": "triage",
+        "name": "Bug Intake",
+        "type": "agent",
+        "label": "Triage",
+        "agent_alias": "it_product_requirements_analyst",
+        "input_mappings": []
+      },
+      {
+        "id": "qa",
+        "name": "Reproduction & Tests",
+        "type": "agent",
+        "label": "QA",
+        "agent_alias": "it_qa_test_planner",
+        "input_mappings": [
+          {
+            "source_node_id": "triage",
+            "source_path": "output_json",
+            "target_field": "bug_report"
+          }
+        ]
+      },
+      {
+        "id": "architecture",
+        "name": "Root Cause & Design",
+        "type": "agent",
+        "label": "Architecture",
+        "agent_alias": "it_solution_architect",
+        "input_mappings": [
+          {
+            "source_node_id": "triage",
+            "source_path": "output_json",
+            "target_field": "bug_report"
+          },
+          {
+            "source_node_id": "qa",
+            "source_path": "output_json",
+            "target_field": "qa_analysis"
+          }
+        ]
+      },
+      {
+        "id": "backend",
+        "name": "Backend Fix Plan",
+        "type": "agent",
+        "label": "Backend",
+        "agent_alias": "it_backend_engineer",
+        "input_mappings": [
+          {
+            "source_node_id": "architecture",
+            "source_path": "output_json",
+            "target_field": "architecture"
+          }
+        ]
+      },
+      {
+        "id": "frontend",
+        "name": "Frontend Fix Plan",
+        "type": "agent",
+        "label": "Frontend",
+        "agent_alias": "it_frontend_engineer",
+        "input_mappings": [
+          {
+            "source_node_id": "architecture",
+            "source_path": "output_json",
+            "target_field": "architecture"
+          }
+        ]
+      },
+      {
+        "id": "merge_fix",
+        "name": "Merge Fix Plans",
+        "type": "merge",
+        "label": "Merge"
+      },
+      {
+        "id": "review",
+        "name": "Code Review",
+        "type": "agent",
+        "label": "Review",
+        "agent_alias": "it_code_reviewer",
+        "input_mappings": [
+          {
+            "source_node_id": "qa",
+            "source_path": "output_json",
+            "target_field": "qa_analysis"
+          },
+          {
+            "source_node_id": "merge_fix",
+            "source_path": "output_json",
+            "target_field": "fix_plans"
+          },
+          {
+            "source_node_id": "architecture",
+            "source_path": "output_json",
+            "target_field": "architecture"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {"id": "e_tri_qa", "source": "triage", "target": "qa"},
+      {"id": "e_qa_arch", "source": "qa", "target": "architecture"},
+      {"id": "e_arch_be", "source": "architecture", "target": "backend"},
+      {"id": "e_arch_fe", "source": "architecture", "target": "frontend"},
+      {"id": "e_be_merge", "source": "backend", "target": "merge_fix"},
+      {"id": "e_fe_merge", "source": "frontend", "target": "merge_fix"},
+      {"id": "e_merge_rev", "source": "merge_fix", "target": "review"}
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+# Pack metadata (installer reads this + agents/, deep_agents/, flows/)
+version: "0.1.0"
+slug: it_service_desk
+catalog_key: it_service_desk
+name: IT Service Desk
+description: >-
+  ITIL-aligned ticket triage, knowledge search, access requests, hardware/software
+  support, and SLA-aware escalation for internal employee support.
