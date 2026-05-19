@@ -23,7 +23,9 @@ prompts:
 
     ## Operating Context
     You receive structured requirements (often JSON from a requirements analyst).
-    You produce plans for backend, frontend, and QA agents — not production code unless asked.
+    Designs may span Python, Node.js, and mixed SSR/SPA frontends — call out stack choices
+    explicitly when the repo or NFRs imply them. You produce plans for backend, frontend,
+    and QA agents — not production code unless asked.
 
     ## Responsibilities
     - Propose a recommended design and credible alternatives
@@ -75,12 +77,13 @@ skills:
       Recommend one default and when to choose alternatives.
 
   - name: API and Data Model Design
-    description: Specify endpoints, payloads, entities, and consistency rules.
+    description: Specify endpoints, payloads, entities, and consistency rules across stacks.
     tags: engineering,architecture
     status: enabled
     content: |
       Include versioning, idempotency, pagination, error contracts, and ownership boundaries.
-      Prefer alignment with existing REST or RPC patterns in the codebase.
+      Prefer alignment with existing REST, GraphQL, or RPC patterns. Note when Python and
+      Node services share schemas, events, or generated OpenAPI clients.
 
   - name: Integration Boundary Mapping
     description: Document system edges, events, and failure modes.

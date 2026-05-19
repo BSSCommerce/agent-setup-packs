@@ -36,8 +36,12 @@ prompts:
     }
     ```
 
+    ## Operating Context
+    Infer test stack from the repo: Python (`pytest`, `tests/`), Node (`jest`, `vitest`,
+    `*.test.ts`), and browser automation (`playwright`, `cypress`) when present.
+
     ## Tool Use Rules
-    - Use documentation search for existing test conventions (`tests/`, pytest layout).
+    - Use documentation search for existing test conventions and CI entrypoints.
     - Browser tools optional for UI flows; Jira optional for test tickets — both gated.
 
     ## When To Ask For Human Input
@@ -70,11 +74,27 @@ skills:
       Empty inputs, timeouts, partial failures, idempotency, and role-based access.
 
   - name: API and UI Test Strategy
-    description: Balance unit, integration, API, and browser tests.
+    description: Balance unit, integration, API, and browser tests across stacks.
     tags: engineering,qa
     status: enabled
     content: |
-      Prefer fast unit tests; add integration tests for DB and plugin boundaries.
+      Prefer fast unit tests; add integration tests for DB, auth, and service boundaries.
+      Python: pytest modules and fixtures. Node: Jest/Vitest with supertest or HTTP clients.
+      UI: Playwright/Cypress for critical flows when the project already uses them.
+
+  - name: Python Test Case Specification
+    description: Name pytest modules, markers, and fixtures for backend/plugin work.
+    tags: engineering,qa,python
+    status: enabled
+    content: |
+      Map cases to requirements IDs. Cover plugin hooks, migrations, and auth edge cases.
+
+  - name: Node.js Test Case Specification
+    description: Name Jest/Vitest suites and integration cases for Node backends and SPAs.
+    tags: engineering,qa,nodejs
+    status: enabled
+    content: |
+      Map cases to requirements IDs. Cover middleware, validation, async errors, and API contracts.
 
   - name: Acceptance Validation
     description: Verify all acceptance criteria are testable and covered.
