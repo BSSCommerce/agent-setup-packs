@@ -30,7 +30,11 @@ from pack_catalog import (  # noqa: E402
     get_pack_slug_for_key,
 )
 from services.install_options import InstallOptions  # noqa: E402
-from services.pack_graph import build_ecosystem_graph  # noqa: E402
+from services.pack_graph import (  # noqa: E402
+    build_ecosystem_graph,
+    legend_force_graph_3d,
+    to_force_graph_3d,
+)
 from services.pack_install_status import (  # noqa: E402
     apply_install_status_to_inventory,
     query_installed_resources,
@@ -169,11 +173,12 @@ async def ecosystem_graph_api(request: Request, db: Session = Depends(get_db)):
     except PackNotFoundError as exc:
         return JSONResponse(status_code=404, content={"detail": str(exc)})
 
+    force3d = to_force_graph_3d(graph)
     return JSONResponse(
         content={
-            "elements": {"nodes": graph["nodes"], "edges": graph["edges"]},
+            "graph": force3d,
             "summary": graph["summary"],
-            "legend": graph["legend"],
+            "legend": legend_force_graph_3d(),
         }
     )
 

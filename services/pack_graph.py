@@ -16,6 +16,18 @@ def _resource_classes(resource_type: str, is_installed: bool) -> str:
     return f"resource-node {state} {resource_type}"
 
 
+FORCE_GRAPH_EDGE_TYPES = frozenset({"sub_agent", "flow_requires", "cross_pack"})
+
+NODE_COLOR_INSTALLED = "#22c55e"
+NODE_COLOR_PENDING = "#1e3a8a"
+
+EDGE_COLOR: dict[str, str] = {
+    "sub_agent": "#a78bfa",
+    "flow_requires": "#34d399",
+    "cross_pack": "#fbbf24",
+}
+
+
 def _pack_node_id(catalog_key: str) -> str:
     return f"pack:{catalog_key}"
 
@@ -163,7 +175,6 @@ def build_ecosystem_graph(db: Session, *, loader: PackLoader | None = None) -> d
                 accent,
             )
 
-            agent_keys_in_flow: list[str] = []
             for req in flow.get("required_agents") or []:
                 lkey = req.get("logical_key")
                 if lkey and req.get("in_pack"):
@@ -175,27 +186,6 @@ def build_ecosystem_graph(db: Session, *, loader: PackLoader | None = None) -> d
                         "flow_requires",
                         "requires",
                     )
-                    if lkey not in agent_keys_in_flow:
-                        agent_keys_in_flow.append(lkey)
-
-            for i in range(len(agent_keys_in_flow) - 1):
-                _add_edge(
-                    edges,
-                    edge_ids,
-                    _resource_node_id(catalog_key, "agent", agent_keys_in_flow[i]),
-                    _resource_node_id(catalog_key, "agent", agent_keys_in_flow[i + 1]),
-                    "flow_sequence",
-                    "",
-                )
-            if agent_keys_in_flow:
-                _add_edge(
-                    edges,
-                    edge_ids,
-                    _resource_node_id(catalog_key, "flow", flow["logical_key"]),
-                    _resource_node_id(catalog_key, "agent", agent_keys_in_flow[0]),
-                    "flow_entry",
-                    "starts",
-                )
 
             for opt in flow.get("optional_nodes") or []:
                 target_catalog = str(opt.get("pack") or "").strip()
@@ -358,14 +348,88 @@ def _add_edge(
 
 
 def _legend_payload() -> list[dict[str, str]]:
+    return legend_force_graph_3d()
+
+
+def legend_force_graph_3d() -> list[dict[str, str]]:
     return [
-        {"key": "agent_installed", "label": "Agent · installed", "color": "#10b981"},
-        {"key": "agent_pending", "label": "Agent · not installed", "color": "#94a3b8"},
-        {"key": "deep_installed", "label": "Deep agent · installed", "color": "#7c3aed"},
-        {"key": "deep_pending", "label": "Deep agent · not installed", "color": "#c4b5fd"},
-        {"key": "flow_installed", "label": "AgentFlow · installed", "color": "#059669"},
-        {"key": "flow_pending", "label": "AgentFlow · not installed", "color": "#64748b"},
-        {"key": "edge_sub", "label": "Deep → sub-agent", "color": "#8b5cf6"},
-        {"key": "edge_flow", "label": "Flow → agent", "color": "#10b981"},
-        {"key": "edge_cross", "label": "Cross-pack optional", "color": "#f59e0b"},
+        {"key": "installed", "label": "Installed", "color": NODE_COLOR_INSTALLED},
+        {"key": "pending", "label": "Not installed", "color": NODE_COLOR_PENDING},
+        {"key": "edge_sub", "label": "Deep → sub-agent", "color": EDGE_COLOR["sub_agent"]},
+        {"key": "edge_flow", "label": "Flow → agent", "color": EDGE_COLOR["flow_requires"]},
+        {"key": "edge_cross", "label": "Cross-pack optional", "color": EDGE_COLOR["cross_pack"]},
     ]
+
+
+def _node_size(resource_type: str, installed: bool) -> float:
+    """Mass hint for force layout (visual size is set in the 3D template)."""
+    base = {"agent": 12.0, "deep_agent": 18.0, "flow": 14.0}.get(resource_type, 12.0)
+    return base + (2.0 if installed else 0.0)
+
+
+def _node_color(resource_type: str, installed: bool, pack_accent: str) -> str:
+    del resource_type, pack_accent
+    return NODE_COLOR_INSTALLED if installed else NODE_COLOR_PENDING
+
+
+def to_force_graph_3d(graph: dict[str, Any]) -> dict[str, Any]:
+    """Simplified nodes/links payload for 3d-force-graph (no compound pack shells)."""
+    pack_meta = {
+        p["key"]: {
+            "key": p["key"],
+            "short_name": p["short_name"],
+            "accent": p.get("accent") or "sky",
+            "org_layer_order": p["org_layer_order"],
+        }
+        for p in SETUP_PACKS
+    }
+
+    nodes: list[dict[str, Any]] = []
+    for raw in graph.get("nodes") or []:
+        data = raw.get("data") or {}
+        if data.get("type") == "pack":
+            continue
+        catalog_key = data.get("catalog_key") or ""
+        resource_type = data.get("resource_type") or data.get("type") or "agent"
+        installed = bool(data.get("installed"))
+        pack_accent = data.get("pack_accent") or "sky"
+        pack = pack_meta.get(catalog_key, {})
+        nodes.append(
+            {
+                "id": data["id"],
+                "name": data.get("label") or data.get("logical_key"),
+                "catalog_key": catalog_key,
+                "pack_label": pack.get("short_name") or catalog_key,
+                "resource_type": resource_type,
+                "installed": installed,
+                "alias": data.get("alias"),
+                "detail_url": data.get("detail_url"),
+                "val": _node_size(resource_type, installed),
+                "color": _node_color(resource_type, installed, pack_accent),
+            }
+        )
+
+    links: list[dict[str, Any]] = []
+    for raw in graph.get("edges") or []:
+        data = raw.get("data") or {}
+        edge_type = data.get("edge_type") or ""
+        if edge_type not in FORCE_GRAPH_EDGE_TYPES:
+            continue
+        color = EDGE_COLOR.get(edge_type, "#64748b")
+        if edge_type == "cross_pack" and data.get("target_installed"):
+            color = "#34d399"
+        links.append(
+            {
+                "source": data["source"],
+                "target": data["target"],
+                "edge_type": edge_type,
+                "color": color,
+                "dashed": edge_type == "cross_pack",
+            }
+        )
+
+    return {
+        "nodes": nodes,
+        "links": links,
+        "packs": list(pack_meta.values()),
+    }

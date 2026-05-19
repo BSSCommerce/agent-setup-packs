@@ -1,0 +1,373 @@
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.73.3/dist/3d-force-graph.min.js"></script>
+<script>
+(function () {
+  const API_URL = '/agent-setup-packs/api/ecosystem-graph';
+  const COLOR_INSTALLED = '#22c55e';
+  const COLOR_PENDING = '#1e3a8a';
+  const COLOR_SELECTED = '#fde047';
+
+  const modal = document.getElementById('ecosystem-graph-modal');
+  const container = document.getElementById('ecosystem-graph-3d');
+  const summaryEl = document.getElementById('graph-summary');
+  const legendEl = document.getElementById('graph-legend');
+  const detailEl = document.getElementById('graph-node-detail');
+  const loadingEl = document.getElementById('graph-loading');
+  const openBtn = document.getElementById('open-ecosystem-graph');
+  const filterPack = document.getElementById('graph-filter-pack');
+  const filterInstalled = document.getElementById('graph-filter-installed');
+  const filterCross = document.getElementById('graph-filter-cross');
+  const resetCameraBtn = document.getElementById('graph-reset-camera');
+
+  let graph3d = null;
+  let fullGraph = null;
+  let selectedNodeId = null;
+
+  const CAMERA_DEFAULT = { x: 0, y: 80, z: 520 };
+  const SIDEBAR_WIDTH = 176;
+
+  if (!openBtn || !modal || !container) return;
+  if (typeof ForceGraph3D !== 'function') {
+    console.error('3d-force-graph failed to load');
+    return;
+  }
+
+  function setLoading(on) {
+    if (loadingEl) loadingEl.style.opacity = on ? '1' : '0';
+  }
+
+  function graphDimensions() {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    return {
+      width: w > 80 ? w : Math.max(window.innerWidth - SIDEBAR_WIDTH - 24, 720),
+      height: h > 80 ? h : Math.max(window.innerHeight - 88, 520),
+    };
+  }
+
+  function cloneNode(n) {
+    return {
+      id: n.id,
+      name: n.name,
+      catalog_key: n.catalog_key,
+      pack_label: n.pack_label,
+      resource_type: n.resource_type,
+      installed: !!n.installed,
+      alias: n.alias,
+      detail_url: n.detail_url,
+    };
+  }
+
+  function linkEndpointId(endpoint) {
+    if (endpoint == null) return '';
+    if (typeof endpoint === 'object') return endpoint.id || '';
+    return String(endpoint);
+  }
+
+  function cloneLink(l) {
+    return {
+      source: linkEndpointId(l.source),
+      target: linkEndpointId(l.target),
+      edge_type: l.edge_type,
+      color: l.color,
+    };
+  }
+
+  function openModal() {
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('overflow-hidden');
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (!fullGraph) {
+          loadGraph();
+        } else if (graph3d) {
+          resizeGraph();
+          resetCamera(false);
+        } else {
+          applyFilters();
+        }
+      });
+    });
+  }
+
+  function closeModal() {
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('overflow-hidden');
+  }
+
+  function resizeGraph() {
+    if (!graph3d) return;
+    const dim = graphDimensions();
+    graph3d.width(dim.width);
+    graph3d.height(dim.height);
+  }
+
+  function renderLegend(items) {
+    legendEl.innerHTML = (items || []).map(function (item) {
+      return '<li class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full shrink-0" style="background:' +
+        item.color + '"></span><span>' + item.label + '</span></li>';
+    }).join('');
+  }
+
+  function populatePackFilter(packs) {
+    const current = filterPack.value;
+    filterPack.innerHTML = '<option value="">All packs</option>';
+    (packs || []).forEach(function (p) {
+      const opt = document.createElement('option');
+      opt.value = p.key;
+      opt.textContent = p.short_name || p.key;
+      filterPack.appendChild(opt);
+    });
+    const hasCurrent = current && Array.from(filterPack.options).some(function (o) {
+      return o.value === current;
+    });
+    filterPack.value = hasCurrent ? current : '';
+  }
+
+  function filteredGraphData() {
+    if (!fullGraph) return { nodes: [], links: [] };
+    const packKey = filterPack.value;
+    const onlyInstalled = filterInstalled.checked;
+    const showCross = filterCross.checked;
+
+    const nodes = fullGraph.nodes.filter(function (n) {
+      if (packKey && n.catalog_key !== packKey) return false;
+      if (onlyInstalled && !n.installed) return false;
+      return true;
+    });
+    const nodeIds = new Set(nodes.map(function (n) { return n.id; }));
+
+    const links = fullGraph.links.filter(function (l) {
+      if (l.edge_type === 'cross_pack' && !showCross) return false;
+      return nodeIds.has(l.source) && nodeIds.has(l.target);
+    }).map(cloneLink);
+
+    return {
+      nodes: nodes.map(cloneNode),
+      links: links,
+    };
+  }
+
+  function seedPackClusters(nodes, packs) {
+    const order = {};
+    (packs || []).forEach(function (p, i) {
+      order[p.key] = i;
+    });
+    const count = Math.max((packs || []).length, 1);
+    nodes.forEach(function (n) {
+      const idx = order[n.catalog_key] != null ? order[n.catalog_key] : 0;
+      const angle = (idx / count) * Math.PI * 2;
+      const radius = 160 + (idx % 2) * 50;
+      n.x = radius * Math.cos(angle);
+      n.y = (idx % 3 - 1) * 55;
+      n.z = radius * Math.sin(angle);
+    });
+  }
+
+  function nodeValFn(node) {
+    const sizes = { agent: 14, deep_agent: 22, flow: 18 };
+    return sizes[node.resource_type] || 14;
+  }
+
+  function nodeColorFn(node) {
+    if (node.id === selectedNodeId) return COLOR_SELECTED;
+    return node.installed ? COLOR_INSTALLED : COLOR_PENDING;
+  }
+
+  function showNodeDetail(node) {
+    if (!node) {
+      detailEl.textContent = 'Click a node to inspect.';
+      return;
+    }
+    const status = node.installed
+      ? '<span class="text-emerald-400 font-medium">Installed</span>' +
+        (node.alias ? ' · ' + node.alias : '')
+      : '<span class="text-blue-300 font-medium">Not installed</span>';
+    const typeLabel = (node.resource_type || '').replace('_', ' ');
+    detailEl.innerHTML =
+      '<p class="font-semibold text-slate-200">' + node.name + '</p>' +
+      '<p class="text-slate-500">' + node.pack_label + ' · ' + typeLabel + '</p>' +
+      '<p class="mt-1">' + status + '</p>' +
+      '<a class="mt-1.5 inline-block text-indigo-400 hover:text-indigo-300" href="' +
+      (node.detail_url || '#') + '">' +
+      (node.installed ? 'Open resource →' : 'View pack →') + '</a>';
+  }
+
+  function refreshNodeColors() {
+    if (!graph3d) return;
+    graph3d.nodeColor(nodeColorFn);
+  }
+
+  function linkDistanceFn(link) {
+    if (link.edge_type === 'cross_pack') return 65;
+    if (link.edge_type === 'sub_agent') return 55;
+    return 85;
+  }
+
+  function applyForceLayout(g) {
+    if (!g || typeof g.d3Force !== 'function') return;
+    const charge = g.d3Force('charge');
+    if (charge && typeof charge.strength === 'function') {
+      charge.strength(-280);
+    }
+    const link = g.d3Force('link');
+    if (link && typeof link.distance === 'function') {
+      link.distance(linkDistanceFn);
+    }
+  }
+
+  function destroyGraph3d() {
+    if (!graph3d) return;
+    try {
+      if (typeof graph3d.pauseAnimation === 'function') {
+        graph3d.pauseAnimation();
+      }
+      if (typeof graph3d._destructor === 'function') {
+        graph3d._destructor();
+      }
+    } catch (e) {
+      console.warn('graph destructor', e);
+    }
+    graph3d = null;
+  }
+
+  function initGraph3d(data, packs) {
+    destroyGraph3d();
+    selectedNodeId = null;
+    showNodeDetail(null);
+
+    const nodes = data.nodes.map(cloneNode);
+    const links = data.links.map(cloneLink);
+    seedPackClusters(nodes, packs);
+
+    if (!nodes.length) {
+      summaryEl.textContent = 'No nodes match the current filters.';
+      return;
+    }
+
+    const dim = graphDimensions();
+
+    graph3d = ForceGraph3D()(container)
+      .width(dim.width)
+      .height(dim.height)
+      .backgroundColor('#020617')
+      .showNavInfo(false)
+      .nodeLabel(function (n) {
+        return n.name + ' (' + n.pack_label + ')' + (n.installed ? ' · installed' : '');
+      })
+      .nodeVal(nodeValFn)
+      .nodeRelSize(4)
+      .nodeColor(nodeColorFn)
+      .nodeOpacity(1)
+      .linkColor('color')
+      .linkOpacity(0.65)
+      .linkWidth(function (l) {
+        return l.edge_type === 'cross_pack' ? 1.5 : 1;
+      })
+      .linkDirectionalArrowLength(2.5)
+      .linkDirectionalArrowRelPos(0.9)
+      .d3AlphaDecay(0.02)
+      .d3VelocityDecay(0.3)
+      .onNodeClick(function (node) {
+        selectedNodeId = node.id;
+        showNodeDetail(node);
+        refreshNodeColors();
+      })
+      .onBackgroundClick(function () {
+        selectedNodeId = null;
+        showNodeDetail(null);
+        refreshNodeColors();
+      });
+
+    graph3d.graphData({ nodes: nodes, links: links });
+    applyForceLayout(graph3d);
+
+    requestAnimationFrame(function () {
+      resizeGraph();
+      resetCamera(false);
+    });
+  }
+
+  function resetCamera(animate) {
+    if (!graph3d) return;
+    const ms = animate === false ? 0 : 700;
+    graph3d.cameraPosition(
+      { x: CAMERA_DEFAULT.x, y: CAMERA_DEFAULT.y, z: CAMERA_DEFAULT.z },
+      { x: 0, y: 0, z: 0 },
+      ms
+    );
+  }
+
+  function updateSummary(data) {
+    const s = (fullGraph && fullGraph.summary) || {};
+    const installedInView = data.nodes.filter(function (n) { return n.installed; }).length;
+    summaryEl.textContent =
+      data.nodes.length + ' nodes · ' + data.links.length + ' links · ' +
+      installedInView + ' installed in view · ' +
+      (s.installed_resources || 0) + ' installed total';
+  }
+
+  function applyFilters() {
+    if (!fullGraph) return;
+    try {
+      const data = filteredGraphData();
+      const packs = filterPack.value
+        ? fullGraph.packs.filter(function (p) { return p.key === filterPack.value; })
+        : fullGraph.packs;
+      initGraph3d(data, packs);
+      updateSummary(data);
+    } catch (err) {
+      console.error('Graph filter error:', err);
+      summaryEl.textContent = 'Could not update graph. Try Reset view or reload.';
+    }
+  }
+
+  async function loadGraph() {
+    setLoading(true);
+    summaryEl.textContent = 'Loading 3D cloud…';
+    try {
+      const res = await fetch(API_URL, { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const payload = await res.json();
+      fullGraph = {
+        nodes: (payload.graph.nodes || []).map(cloneNode),
+        links: (payload.graph.links || []).map(cloneLink),
+        packs: (payload.graph.packs || []).slice(),
+        summary: payload.summary || {},
+      };
+      populatePackFilter(fullGraph.packs);
+      renderLegend(payload.legend);
+      applyFilters();
+    } catch (err) {
+      summaryEl.textContent = 'Failed to load graph.';
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  openBtn.addEventListener('click', openModal);
+  modal.querySelectorAll('[data-graph-dismiss]').forEach(function (el) {
+    el.addEventListener('click', closeModal);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+  });
+  filterPack.addEventListener('change', applyFilters);
+  filterInstalled.addEventListener('change', applyFilters);
+  filterCross.addEventListener('change', applyFilters);
+  resetCameraBtn.addEventListener('click', function () {
+    if (!graph3d) {
+      applyFilters();
+      return;
+    }
+    resetCamera(true);
+  });
+
+  window.addEventListener('resize', function () {
+    if (!modal.classList.contains('hidden')) resizeGraph();
+  });
+})();
+</script>
