@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
 from services.pack_loader import (
     AgentTemplate,
     DeepAgentTemplate,

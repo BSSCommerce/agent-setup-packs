@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from services.install_options import InstallOptions, InstallSelection
+from services.pack_install_status import query_installed_resources
 from services.pack_loader import (
     AgentTemplate,
     DeepAgentTemplate,
@@ -195,7 +196,7 @@ class PackInstaller:
             options=opts,
         )
         self._validate_pack(pack, plan)
-        self._validate_flow_templates(pack, plan, opts)
+        self._validate_flow_templates(db, pack, plan, opts)
         if plan.errors:
             return plan
 
@@ -263,10 +264,11 @@ class PackInstaller:
             )
 
         for template in flows:
-            flow_json = rewrite_flow_agent_aliases(
-                template.flow,
-                target_prefix=opts.alias_prefix,
-                source_prefix=template.alias_prefix,
+            flow_json = self._flow_json_for_install(
+                db,
+                pack,
+                template,
+                opts,
             )
             missing_agents = [
                 alias
@@ -412,10 +414,11 @@ class PackInstaller:
                 )
 
             for template in flows:
-                flow_json = rewrite_flow_agent_aliases(
-                    template.flow,
-                    target_prefix=opts.alias_prefix,
-                    source_prefix=template.alias_prefix,
+                flow_json = self._flow_json_for_install(
+                    db,
+                    pack,
+                    template,
+                    opts,
                 )
                 self._validate_flow_graph(flow_json)
                 missing = self._missing_flow_agent_aliases(db, flow_json)
@@ -589,6 +592,8 @@ class PackInstaller:
             agent_t = agents_by_key.get(key)
             if agent_t is None:
                 continue
+            if self._installed_agent_meta(db, pack, key):
+                continue
             alias = alias_map.get(key) or build_alias(opts.alias_prefix, agent_t.alias_suffix)
             if db.query(Agent.id).filter(Agent.alias == alias).first() is None:
                 missing.append(f"{key} ({alias})")
@@ -614,6 +619,11 @@ class PackInstaller:
             if agent_t is None:
                 missing.append(key)
                 continue
+            installed = self._installed_agent_meta(db, pack, key)
+            if installed:
+                logical_to_agent_id[key] = int(installed["resource_id"])
+                sub_ids.append(int(installed["resource_id"]))
+                continue
             alias = alias_map.get(key) or build_alias(opts.alias_prefix, agent_t.alias_suffix)
             row = db.query(Agent).filter(Agent.alias == alias).first()
             if row is None:
@@ -626,6 +636,52 @@ class PackInstaller:
                 "Install required sub-agents first: " + ", ".join(missing)
             )
         return sub_ids
+
+    def _flow_json_for_install(
+        self,
+        db: Session,
+        pack: LoadedPack,
+        template: FlowTemplate,
+        opts: InstallOptions,
+    ) -> dict[str, Any]:
+        flow_json = rewrite_flow_agent_aliases(
+            template.flow,
+            target_prefix=opts.alias_prefix,
+            source_prefix=template.alias_prefix,
+        )
+        installed_agents = {
+            key: meta
+            for (rtype, key), meta in query_installed_resources(
+                db, pack.manifest.catalog_key
+            ).items()
+            if rtype == "agent" and meta.get("alias")
+        }
+        if not installed_agents:
+            return flow_json
+
+        by_suffix = {agent.alias_suffix: agent.logical_key for agent in pack.agents}
+        prefix = f"{opts.alias_prefix}_"
+        for node in flow_json.get("nodes") or []:
+            if not isinstance(node, dict):
+                continue
+            if str(node.get("type") or "agent").strip().lower() != "agent":
+                continue
+            alias = str(node.get("agent_alias") or "").strip()
+            suffix = alias[len(prefix) :] if alias.startswith(prefix) else alias.split("_", 1)[-1]
+            logical_key = by_suffix.get(suffix)
+            if logical_key and logical_key in installed_agents:
+                node["agent_alias"] = str(installed_agents[logical_key]["alias"])
+        return flow_json
+
+    def _installed_agent_meta(
+        self,
+        db: Session,
+        pack: LoadedPack,
+        logical_key: str,
+    ) -> dict[str, Any] | None:
+        return query_installed_resources(db, pack.manifest.catalog_key).get(
+            ("agent", logical_key)
+        )
 
     @staticmethod
     def _missing_flow_agent_aliases(db: Session, flow_json: dict[str, Any]) -> list[str]:
@@ -643,15 +699,16 @@ class PackInstaller:
         return missing
 
     def _validate_flow_templates(
-        self, pack: LoadedPack, plan: InstallPlan, opts: InstallOptions
+        self, db: Session, pack: LoadedPack, plan: InstallPlan, opts: InstallOptions
     ) -> None:
         _, _, flows = self._selected_templates(pack, opts.selection)
         for template in flows:
             try:
-                flow_json = rewrite_flow_agent_aliases(
-                    template.flow,
-                    target_prefix=opts.alias_prefix,
-                    source_prefix=template.alias_prefix,
+                flow_json = self._flow_json_for_install(
+                    db,
+                    pack,
+                    template,
+                    opts,
                 )
                 self._validate_flow_graph(flow_json)
             except Exception as exc:

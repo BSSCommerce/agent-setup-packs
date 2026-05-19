@@ -23,6 +23,13 @@
    class="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100">
   Open
 </a>
+<button type="button"
+        class="uninstall-one-btn rounded-lg border border-rose-200 bg-white px-2 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-50"
+        data-resource-type="{{ resource_type }}"
+        data-logical-key="{{ item.logical_key }}"
+        data-resource-label="{{ item.name }}">
+  Uninstall
+</button>
 {% else %}
 <button type="button"
         class="install-one-btn rounded-lg px-2 py-1 text-[11px] font-medium text-white
@@ -78,7 +85,7 @@
   </header>
 
   {% if pack_on_disk %}
-  <section id="setup-panel" class="hidden rounded-2xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-sm">
+  <section id="setup-panel" class="hidden rounded-2xl border border-indigo-200 bg-indigo-50/40 p-5 shadow-sm scroll-mt-6">
     <h2 class="text-sm font-semibold text-zinc-900">Install {{ pack.name }}</h2>
     <p class="mt-1 text-xs text-zinc-600">Full pack below, or use <strong>Install</strong> on each agent / deep agent / flow (same alias prefix).</p>
     <form id="setup-form" class="mt-4 grid gap-4 sm:grid-cols-2">
@@ -113,6 +120,9 @@
     <div class="mt-4 flex flex-wrap gap-2">
       <button type="button" id="dry-run-btn" class="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Dry run</button>
       <button type="button" id="install-btn" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Install now</button>
+      {% if pack_inventory and pack_inventory.summary.installed_total %}
+      <button type="button" id="uninstall-pack-btn" class="rounded-lg border border-rose-200 bg-white px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50">Uninstall installed resources</button>
+      {% endif %}
     </div>
     <pre id="setup-result" class="mt-4 hidden max-h-64 overflow-auto rounded-lg border border-zinc-200 bg-zinc-900 p-3 text-xs text-zinc-100"></pre>
   </section>
@@ -421,7 +431,20 @@
   const panel = document.getElementById("setup-panel");
   const form = document.getElementById("setup-form");
   const resultEl = document.getElementById("setup-result");
-  document.getElementById("open-setup-panel")?.addEventListener("click", () => panel.classList.toggle("hidden"));
+  document.getElementById("open-setup-panel")?.addEventListener("click", () => {
+    panel?.classList.toggle("hidden");
+    if (panel && !panel.classList.contains("hidden") && window.location.hash !== "#setup") {
+      history.replaceState(null, "", "#setup");
+    }
+  });
+
+  function openSetupPanelFromHash() {
+    if (window.location.hash !== "#setup" || !panel) return;
+    panel.classList.remove("hidden");
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  openSetupPanelFromHash();
+  window.addEventListener("hashchange", openSetupPanelFromHash);
 
   function payloadFromForm(dryRun) {
     const fd = new FormData(form);
@@ -574,6 +597,39 @@
     openInstallConfirm({ mode: "full" });
   });
 
+  async function runUninstall({ rtype, logicalKey, label, triggerBtn }) {
+    const target = logicalKey ? `${formatResourceType(rtype)} "${label || logicalKey}"` : PACK_NAME;
+    if (!window.confirm(`Uninstall ${target}? This deletes the installed Agent Manager resource and removes the setup-pack mapping.`)) {
+      return;
+    }
+
+    if (triggerBtn) triggerBtn.disabled = true;
+    panel?.classList.remove("hidden");
+    resultEl?.classList.remove("hidden");
+    resultEl.textContent = "Uninstalling…";
+
+    const url = logicalKey
+      ? `/agent-setup-packs/api/packs/${PACK_KEY}/resources/${rtype}/${encodeURIComponent(logicalKey)}/uninstall`
+      : `/agent-setup-packs/api/packs/${PACK_KEY}/uninstall`;
+
+    try {
+      const res = await fetch(url, { method: "POST" });
+      const data = await res.json();
+      resultEl.textContent = JSON.stringify(data, null, 2);
+      if (res.ok) {
+        window.location.reload();
+      }
+    } catch (err) {
+      resultEl.textContent = String(err);
+    } finally {
+      if (triggerBtn) triggerBtn.disabled = false;
+    }
+  }
+
+  document.getElementById("uninstall-pack-btn")?.addEventListener("click", (e) => {
+    runUninstall({ triggerBtn: e.currentTarget });
+  });
+
   document.querySelectorAll(".install-one-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const rtype = btn.dataset.resourceType;
@@ -587,6 +643,16 @@
         label,
         triggerBtn: btn,
       });
+    });
+  });
+
+  document.querySelectorAll(".uninstall-one-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const rtype = btn.dataset.resourceType;
+      const logicalKey = btn.dataset.logicalKey;
+      const label = btn.dataset.resourceLabel || logicalKey;
+      if (!rtype || !logicalKey) return;
+      runUninstall({ rtype, logicalKey, label, triggerBtn: btn });
     });
   });
 

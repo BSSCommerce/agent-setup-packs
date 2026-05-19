@@ -37,11 +37,13 @@ from services.pack_graph import (  # noqa: E402
 )
 from services.pack_install_status import (  # noqa: E402
     apply_install_status_to_inventory,
+    query_all_installed_resources,
     query_installed_resources,
 )
 from services.pack_installer import PackInstaller, PackInstallerError  # noqa: E402
 from services.pack_inventory import get_resource_preview, load_inventory_for_catalog  # noqa: E402
 from services.pack_loader import PackLoader, PackNotFoundError  # noqa: E402
+from services.pack_uninstaller import uninstall_pack_resources  # noqa: E402
 
 router = APIRouter(prefix="/agent-setup-packs", tags=["agent-setup-packs"])
 
@@ -111,6 +113,23 @@ def _serialize_install_result(result) -> dict[str, Any]:
     return payload
 
 
+def _serialize_uninstall_result(result) -> dict[str, Any]:
+    return {
+        "catalog_key": result.catalog_key,
+        "warnings": result.warnings,
+        "resources": [
+            {
+                "logical_key": row.logical_key,
+                "resource_type": row.resource_type,
+                "resource_id": row.resource_id,
+                "alias": row.alias,
+                "deleted": row.deleted,
+            }
+            for row in result.resources
+        ],
+    }
+
+
 class InstallPackPayload(BaseModel):
     alias_prefix: str = Field(default="it", max_length=32)
     tool_profile: str = Field(default="read_only")
@@ -138,6 +157,21 @@ async def setup_packs_overview_page(request: Request, db: Session = Depends(get_
         if row.status == "success":
             installed_by_key[row.template_key] = installed_by_key.get(row.template_key, 0) + 1
 
+    all_installed = query_all_installed_resources(db)
+    install_status_by_key: dict[str, dict[str, Any]] = {}
+    for pack in SETUP_PACKS:
+        key = pack["key"]
+        stats = pack["stats"]
+        total = stats["agents"] + stats["deep_agents"] + stats["flows"]
+        installed_count = len(all_installed.get(key, {}))
+        install_status_by_key[key] = {
+            "installed": installed_count,
+            "total": total,
+            "partial": 0 < installed_count < total,
+            "complete": total > 0 and installed_count >= total,
+            "on_disk": _pack_available_on_disk(key),
+        }
+
     packs_by_layer: dict[int, list] = {}
     for pack in SETUP_PACKS:
         packs_by_layer.setdefault(pack["org_layer_order"], []).append(pack)
@@ -157,6 +191,7 @@ async def setup_packs_overview_page(request: Request, db: Session = Depends(get_
             "primitive_legend": PRIMITIVE_LEGEND,
             "catalog_totals": catalog_totals(),
             "installed_by_key": installed_by_key,
+            "install_status_by_key": install_status_by_key,
             "recent_installations": installations,
         },
     )
@@ -382,6 +417,49 @@ async def install_pack_api(
 
     status = 200 if result.plan.ok else 400
     return JSONResponse(content=_serialize_install_result(result), status_code=status)
+
+
+@router.post("/api/packs/{pack_key}/uninstall")
+async def uninstall_pack_api(
+    pack_key: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _, err = _auth_or_401(db, request)
+    if err:
+        return err
+
+    if get_pack_by_key(pack_key) is None:
+        return JSONResponse(status_code=404, content={"detail": "Pack not found in catalog."})
+
+    result = uninstall_pack_resources(db, catalog_key=pack_key)
+    status = 200 if result.resources else 404
+    return JSONResponse(content=_serialize_uninstall_result(result), status_code=status)
+
+
+@router.post("/api/packs/{pack_key}/resources/{resource_type}/{logical_key}/uninstall")
+async def uninstall_resource_api(
+    pack_key: str,
+    resource_type: str,
+    logical_key: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _, err = _auth_or_401(db, request)
+    if err:
+        return err
+
+    if get_pack_by_key(pack_key) is None:
+        return JSONResponse(status_code=404, content={"detail": "Pack not found in catalog."})
+
+    result = uninstall_pack_resources(
+        db,
+        catalog_key=pack_key,
+        resource_type=resource_type,
+        logical_key=logical_key,
+    )
+    status = 200 if result.resources else 404
+    return JSONResponse(content=_serialize_uninstall_result(result), status_code=status)
 
 
 @router.get("/api/packs/{pack_key}/preview/{resource_type}/{logical_key}")

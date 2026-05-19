@@ -6,6 +6,13 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from core.agents.models import Agent
+
+try:
+    from plugins.agent_flow.models import AgentFlowDefinition
+except ImportError:  # pragma: no cover - plugin availability is validated elsewhere
+    AgentFlowDefinition = None  # type: ignore[assignment]
+
 
 def query_installed_resources(
     db: Session,
@@ -35,18 +42,43 @@ def query_all_installed_resources(
 
     by_catalog: dict[str, dict[tuple[str, str], dict[str, Any]]] = {}
     for row in rows:
+        current = _current_resource_meta(db, row.resource_type, row.resource_id)
+        if current is None:
+            continue
         catalog_key = row.installation.template_key
         key = (row.resource_type, row.logical_key)
         catalog_map = by_catalog.setdefault(catalog_key, {})
         if key in catalog_map:
             continue
         catalog_map[key] = {
+            "map_id": row.id,
             "resource_id": row.resource_id,
-            "alias": row.alias,
+            "alias": current.get("alias") if current.get("alias") is not None else row.alias,
             "installation_id": row.installation_id,
             "installed_url": _resource_url(row.resource_type, row.resource_id),
         }
     return by_catalog
+
+
+def _current_resource_meta(
+    db: Session,
+    resource_type: str,
+    resource_id: int,
+) -> dict[str, Any] | None:
+    """Return current resource metadata, or None when the mapped row was deleted."""
+    if resource_type in {"agent", "deep_agent"}:
+        row = db.get(Agent, resource_id)
+        if row is None:
+            return None
+        return {"alias": row.alias}
+    if resource_type == "flow":
+        if AgentFlowDefinition is None:
+            return None
+        row = db.get(AgentFlowDefinition, resource_id)
+        if row is None:
+            return None
+        return {"alias": None}
+    return None
 
 
 def _resource_url(resource_type: str, resource_id: int) -> str:
