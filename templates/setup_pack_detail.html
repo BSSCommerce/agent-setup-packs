@@ -92,14 +92,16 @@
       <label class="block text-sm">
         <span class="font-medium text-zinc-700">Alias prefix</span>
         <input name="alias_prefix" value="it" maxlength="32" class="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm" />
+        <p class="mt-1 text-xs leading-relaxed text-zinc-500">Prefix for every agent alias (e.g. <code class="rounded bg-zinc-100 px-1 font-mono text-[11px]">it</code> → <code class="rounded bg-zinc-100 px-1 font-mono text-[11px]">it_backend_engineer</code>). Use a short team or environment code.</p>
       </label>
       <label class="block text-sm">
         <span class="font-medium text-zinc-700">Tool profile</span>
         <select name="tool_profile" class="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm">
-          <option value="read_only" selected>Read only</option>
-          <option value="prompt_only">Prompts only</option>
-          <option value="integrated">Integrated</option>
+          <option value="integrated" selected>Integrated — pack defaults</option>
+          <option value="read_only">Read only — memory + docs search</option>
+          <option value="prompt_only">Prompts only — no external tools</option>
         </select>
+        <p class="mt-1 text-xs leading-relaxed text-zinc-500"><strong class="font-medium text-zinc-600">Integrated</strong> keeps each agent’s tool flags from the pack YAML. <strong class="font-medium text-zinc-600">Read only</strong> disables risky tools (Jira, shell, …) but keeps safe lookup tools. <strong class="font-medium text-zinc-600">Prompts only</strong> turns off all pack-defined tools.</p>
       </label>
       <label class="block text-sm">
         <span class="font-medium text-zinc-700">Flow status</span>
@@ -107,22 +109,43 @@
           <option value="draft" selected>Draft</option>
           <option value="active">Active</option>
         </select>
+        <p class="mt-1 text-xs leading-relaxed text-zinc-500">Initial status for new AgentFlows. Use <strong class="font-medium text-zinc-600">Draft</strong> while wiring agents; switch to <strong class="font-medium text-zinc-600">Active</strong> when ready to run in production.</p>
       </label>
       <label class="block text-sm">
         <span class="font-medium text-zinc-700">If alias exists</span>
         <select name="on_alias_conflict" class="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm">
-          <option value="fail" selected>Fail</option>
-          <option value="suffix">Suffix</option>
-          <option value="skip">Skip</option>
+          <option value="fail" selected>Fail — stop install</option>
+          <option value="suffix">Suffix — add _2, _3, …</option>
+          <option value="skip">Skip — reuse existing agent</option>
         </select>
+        <p class="mt-1 text-xs leading-relaxed text-zinc-500">What to do when an agent alias is already in the database. <strong class="font-medium text-zinc-600">Fail</strong> is safest for a clean install; <strong class="font-medium text-zinc-600">Skip</strong> is useful when re-running a partial install.</p>
       </label>
     </form>
-    <div class="mt-4 flex flex-wrap gap-2">
-      <button type="button" id="dry-run-btn" class="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Dry run</button>
-      <button type="button" id="install-btn" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Install now</button>
-      {% if pack_inventory and pack_inventory.summary.installed_total %}
-      <button type="button" id="uninstall-pack-btn" class="rounded-lg border border-rose-200 bg-white px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50">Uninstall installed resources</button>
-      {% endif %}
+    <div class="mt-4 space-y-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="button" id="dry-run-btn"
+                aria-describedby="dry-run-help"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+          Dry run
+          <svg class="h-4 w-4 text-sky-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+          </svg>
+        </button>
+        <button type="button" id="install-btn" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Install now</button>
+        {% if pack_inventory and pack_inventory.summary.installed_total %}
+        <button type="button" id="uninstall-pack-btn" class="rounded-lg border border-rose-200 bg-white px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50">Uninstall installed resources</button>
+        {% endif %}
+      </div>
+      <div id="dry-run-help" role="note"
+           class="flex gap-2.5 rounded-xl border border-sky-100 bg-sky-50/90 px-3 py-2.5 text-xs leading-relaxed text-sky-950">
+        <svg class="mt-0.5 h-4 w-4 shrink-0 text-sky-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 00-.75.75v4.5a.75.75 0 001.5 0v-4.5A.75.75 0 009 9zm1-4a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd"/>
+        </svg>
+        <p>
+          <strong class="font-medium">Dry run</strong> validates the install plan and shows aliases, missing dependencies, and errors in the JSON panel below — nothing is written to the database.
+          When the plan looks good, use <strong class="font-medium">Install now</strong> to create agents, deep coordinators, and flows.
+        </p>
+      </div>
     </div>
     <pre id="setup-result" class="mt-4 hidden max-h-64 overflow-auto rounded-lg border border-zinc-200 bg-zinc-900 p-3 text-xs text-zinc-100"></pre>
   </section>
@@ -450,7 +473,7 @@
     const fd = new FormData(form);
     return {
       alias_prefix: fd.get("alias_prefix") || "it",
-      tool_profile: fd.get("tool_profile") || "read_only",
+      tool_profile: fd.get("tool_profile") || "integrated",
       flow_status: fd.get("flow_status") || "draft",
       on_alias_conflict: fd.get("on_alias_conflict") || "fail",
       dry_run: dryRun,

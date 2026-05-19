@@ -31,7 +31,7 @@ def _normalize_base(base_config: dict[str, Any] | None) -> dict[str, bool]:
 def apply_tool_profile(base_config: dict[str, Any] | None, profile: str) -> dict[str, bool]:
     """Return final boolean tool_config for an agent row."""
     normalized = _normalize_base(base_config)
-    profile = (profile or "read_only").strip().lower()
+    profile = (profile or "integrated").strip().lower()
 
     if profile == "prompt_only":
         return {key: False for key in normalized}

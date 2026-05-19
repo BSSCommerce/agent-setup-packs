@@ -132,7 +132,7 @@ def _serialize_uninstall_result(result) -> dict[str, Any]:
 
 class InstallPackPayload(BaseModel):
     alias_prefix: str = Field(default="it", max_length=32)
-    tool_profile: str = Field(default="read_only")
+    tool_profile: str = Field(default="integrated")
     flow_status: str = Field(default="draft")
     visibility: str = Field(default="creator")
     on_alias_conflict: str = Field(default="fail")

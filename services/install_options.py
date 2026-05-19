@@ -40,7 +40,7 @@ class InstallOptions:
     """User-selected options when installing a setup pack."""
 
     alias_prefix: str = "it"
-    tool_profile: str = "read_only"
+    tool_profile: str = "integrated"
     flow_status: str = "draft"
     visibility: str = "creator"
     dry_run: bool = False
@@ -51,9 +51,9 @@ class InstallOptions:
     def normalized(self) -> InstallOptions:
         prefix = (self.alias_prefix or "it").strip().lower()
         prefix = prefix.rstrip("_")
-        profile = (self.tool_profile or "read_only").strip().lower()
+        profile = (self.tool_profile or "integrated").strip().lower()
         if profile not in {"prompt_only", "read_only", "integrated"}:
-            profile = "read_only"
+            profile = "integrated"
         flow_status = (self.flow_status or "draft").strip().lower()
         if flow_status not in {"draft", "active", "archived"}:
             flow_status = "draft"
