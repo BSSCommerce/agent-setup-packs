@@ -6,7 +6,7 @@
       <header class="shrink-0 flex flex-wrap items-center gap-2 border-b border-slate-800 px-3 py-2 sm:px-4 sm:gap-3">
         <div class="min-w-0 flex-1">
           <h2 id="ecosystem-graph-title" class="text-sm sm:text-base font-semibold text-white">3D pack cloud</h2>
-          <p id="graph-summary" class="mt-0.5 text-[11px] text-slate-400">Drag to rotate · scroll to zoom · click a sphere for details</p>
+          <p id="graph-summary" class="mt-0.5 text-[11px] text-slate-400">Scroll to zoom · drag background to orbit · drag a node to reposition</p>
         </div>
         <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <select id="graph-filter-pack"
@@ -33,18 +33,19 @@
         </div>
       </header>
       <div class="relative flex min-h-0 flex-1 flex-row overflow-hidden">
-        <div id="ecosystem-graph-3d" class="min-h-0 min-w-0 flex-1 h-full w-full bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950/30"></div>
+        <div id="ecosystem-graph-3d" class="relative min-h-0 min-w-0 flex-1 h-full w-full touch-none bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950/30">
+          <div id="graph-loading" class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/60 opacity-0 transition-opacity">
+            <span class="rounded-full border border-slate-600 bg-slate-900 px-4 py-2 text-xs text-slate-300">Loading 3D cloud…</span>
+          </div>
+        </div>
         <aside class="w-36 sm:w-44 shrink-0 border-l border-slate-800 p-2.5 sm:p-3 overflow-y-auto bg-slate-950/95">
           <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Legend</p>
           <ul id="graph-legend" class="mt-1.5 space-y-1 text-[11px] text-slate-400"></ul>
           <p class="mt-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Selection</p>
           <div id="graph-node-detail" class="mt-1.5 rounded-lg border border-slate-800 bg-slate-900/80 p-2 text-[11px] text-slate-400 leading-relaxed">
-            Click a node to inspect.
+            Click a node to inspect. Double-click a node to release it back onto its pack sphere.
           </div>
         </aside>
-        <div id="graph-loading" class="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-950/60 opacity-0 transition-opacity">
-          <span class="rounded-full border border-slate-600 bg-slate-900 px-4 py-2 text-xs text-slate-300">Loading 3D cloud…</span>
-        </div>
       </div>
     </div>
   </div>

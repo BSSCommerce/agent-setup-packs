@@ -23,8 +23,12 @@
   let fullGraph = null;
   let selectedNodeId = null;
 
-  const CAMERA_DEFAULT = { x: 0, y: 80, z: 520 };
+  const CAMERA_DEFAULT = { x: 0, y: 60, z: 480 };
   const SIDEBAR_WIDTH = 176;
+  const PACK_CLUSTER_RADIUS = 105;
+  const PACK_SPHERE_RADIUS_MIN = 22;
+  const PACK_SPHERE_RADIUS_MAX = 46;
+  const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
   if (!openBtn || !modal || !container) return;
   if (typeof ForceGraph3D !== 'function') {
@@ -33,7 +37,9 @@
   }
 
   function setLoading(on) {
-    if (loadingEl) loadingEl.style.opacity = on ? '1' : '0';
+    if (!loadingEl) return;
+    loadingEl.style.opacity = on ? '1' : '0';
+    loadingEl.classList.toggle('invisible', !on);
   }
 
   function graphDimensions() {
@@ -150,20 +156,100 @@
     };
   }
 
-  function seedPackClusters(nodes, packs) {
-    const order = {};
+  function packSphereRadius(nodeCount) {
+    if (nodeCount <= 1) return PACK_SPHERE_RADIUS_MIN;
+    return Math.min(
+      PACK_SPHERE_RADIUS_MAX,
+      PACK_SPHERE_RADIUS_MIN + nodeCount * 2.2
+    );
+  }
+
+  function pointOnSphere(i, count, radius) {
+    if (count <= 1) return { x: 0, y: 0, z: 0 };
+    const t = (i + 0.5) / count;
+    const inclination = Math.acos(1 - 2 * t);
+    const azimuth = GOLDEN_ANGLE * i;
+    return {
+      x: radius * Math.sin(inclination) * Math.cos(azimuth),
+      y: radius * Math.sin(inclination) * Math.sin(azimuth),
+      z: radius * Math.cos(inclination),
+    };
+  }
+
+  function seedPackSphereLayout(nodes, packs) {
+    const packOrder = {};
     (packs || []).forEach(function (p, i) {
-      order[p.key] = i;
+      packOrder[p.key] = i;
     });
-    const count = Math.max((packs || []).length, 1);
+    const packCount = Math.max((packs || []).length, 1);
+    const packCenters = {};
+    (packs || []).forEach(function (p, i) {
+      const angle = (i / packCount) * Math.PI * 2;
+      const ring = PACK_CLUSTER_RADIUS + (i % 2) * 35;
+      packCenters[p.key] = {
+        x: ring * Math.cos(angle),
+        y: (i % 3 - 1) * 36,
+        z: ring * Math.sin(angle),
+      };
+    });
+
+    const byPack = {};
     nodes.forEach(function (n) {
-      const idx = order[n.catalog_key] != null ? order[n.catalog_key] : 0;
-      const angle = (idx / count) * Math.PI * 2;
-      const radius = 160 + (idx % 2) * 50;
-      n.x = radius * Math.cos(angle);
-      n.y = (idx % 3 - 1) * 55;
-      n.z = radius * Math.sin(angle);
+      const key = n.catalog_key || '_unknown';
+      if (!byPack[key]) byPack[key] = [];
+      byPack[key].push(n);
     });
+
+    Object.keys(byPack).forEach(function (packKey) {
+      const packNodes = byPack[packKey];
+      const idx = packOrder[packKey] != null ? packOrder[packKey] : 0;
+      const angle = (idx / packCount) * Math.PI * 2;
+      const ring = PACK_CLUSTER_RADIUS + (idx % 2) * 35;
+      const center = packCenters[packKey] || {
+        x: ring * Math.cos(angle),
+        y: (idx % 3 - 1) * 36,
+        z: ring * Math.sin(angle),
+      };
+      const shellR = packSphereRadius(packNodes.length);
+
+      packNodes.forEach(function (node, i) {
+        const offset = pointOnSphere(i, packNodes.length, shellR);
+        node.x = center.x + offset.x;
+        node.y = center.y + offset.y;
+        node.z = center.z + offset.z;
+        node._packCx = center.x;
+        node._packCy = center.y;
+        node._packCz = center.z;
+        node._packShellR = shellR;
+      });
+    });
+  }
+
+  function releaseNodeFix(node) {
+    node.fx = null;
+    node.fy = null;
+    node.fz = null;
+  }
+
+  function createPackSphereForce(nodes) {
+    return function (alpha) {
+      nodes.forEach(function (node) {
+        if (node.fx != null || node.fy != null || node.fz != null) return;
+        const cx = node._packCx;
+        const cy = node._packCy;
+        const cz = node._packCz;
+        const shellR = node._packShellR;
+        if (shellR == null || cx == null) return;
+        const dx = node.x - cx;
+        const dy = node.y - cy;
+        const dz = node.z - cz;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.001;
+        const pull = ((dist - shellR) / dist) * alpha * 0.45;
+        node.vx -= dx * pull;
+        node.vy -= dy * pull;
+        node.vz -= dz * pull;
+      });
+    };
   }
 
   function nodeValFn(node) {
@@ -202,20 +288,37 @@
 
   function linkDistanceFn(link) {
     if (link.edge_type === 'cross_pack') return 65;
-    if (link.edge_type === 'sub_agent') return 55;
-    return 85;
+    if (link.edge_type === 'sub_agent') return 38;
+    return 48;
   }
 
-  function applyForceLayout(g) {
+  function applyForceLayout(g, nodes) {
     if (!g || typeof g.d3Force !== 'function') return;
     const charge = g.d3Force('charge');
     if (charge && typeof charge.strength === 'function') {
-      charge.strength(-280);
+      charge.strength(-120);
+    }
+    const center = g.d3Force('center');
+    if (center && typeof center.strength === 'function') {
+      center.strength(0.04);
     }
     const link = g.d3Force('link');
     if (link && typeof link.distance === 'function') {
       link.distance(linkDistanceFn);
+      link.strength(0.55);
     }
+    g.d3Force('packSphere', createPackSphereForce(nodes || []));
+  }
+
+  function configureControls(g) {
+    if (!g || typeof g.controls !== 'function') return;
+    const controls = g.controls();
+    if (!controls) return;
+    controls.enableZoom = true;
+    controls.enableRotate = true;
+    controls.enablePan = true;
+    if (controls.zoomSpeed != null) controls.zoomSpeed = 1.1;
+    if (controls.rotateSpeed != null) controls.rotateSpeed = 0.85;
   }
 
   function destroyGraph3d() {
@@ -240,7 +343,7 @@
 
     const nodes = data.nodes.map(cloneNode);
     const links = data.links.map(cloneLink);
-    seedPackClusters(nodes, packs);
+    seedPackSphereLayout(nodes, packs);
 
     if (!nodes.length) {
       summaryEl.textContent = 'No nodes match the current filters.';
@@ -249,11 +352,15 @@
 
     const dim = graphDimensions();
 
-    graph3d = ForceGraph3D()(container)
+    graph3d = ForceGraph3D()(container, { controlType: 'orbit' })
       .width(dim.width)
       .height(dim.height)
       .backgroundColor('#020617')
       .showNavInfo(false)
+      .enablePointerInteraction(true)
+      .enableNavigationControls(true)
+      .enableNodeDrag(true)
+      .warmupTicks(120)
       .nodeLabel(function (n) {
         return n.name + ' (' + n.pack_label + ')' + (n.installed ? ' · installed' : '');
       })
@@ -268,9 +375,24 @@
       })
       .linkDirectionalArrowLength(2.5)
       .linkDirectionalArrowRelPos(0.9)
-      .d3AlphaDecay(0.02)
-      .d3VelocityDecay(0.3)
-      .onNodeClick(function (node) {
+      .d3AlphaDecay(0.028)
+      .d3VelocityDecay(0.35)
+      .onNodeDrag(function (node) {
+        releaseNodeFix(node);
+      })
+      .onNodeDragEnd(function (node) {
+        node.fx = node.x;
+        node.fy = node.y;
+        node.fz = node.z;
+      })
+      .onNodeClick(function (node, event) {
+        if (event && event.detail === 2) {
+          releaseNodeFix(node);
+          if (typeof graph3d.d3ReheatSimulation === 'function') {
+            graph3d.d3ReheatSimulation();
+          }
+          return;
+        }
         selectedNodeId = node.id;
         showNodeDetail(node);
         refreshNodeColors();
@@ -282,7 +404,11 @@
       });
 
     graph3d.graphData({ nodes: nodes, links: links });
-    applyForceLayout(graph3d);
+    applyForceLayout(graph3d, nodes);
+    configureControls(graph3d);
+    if (typeof graph3d.resumeAnimation === 'function') {
+      graph3d.resumeAnimation();
+    }
 
     requestAnimationFrame(function () {
       resizeGraph();
