@@ -21,7 +21,7 @@ class AgentSetupPacksPlugin(PluginBase):
     def meta(self) -> PluginMeta:
         return PluginMeta(
             name="agent_setup_packs",
-            version="0.1.0",
+            version="1.0.0 (beta)",
             description=(
                 "IT company agent template packs — install Agents, DeepAgents, "
                 "and AgentFlows from versioned on-disk pack definitions."
