@@ -25,6 +25,7 @@ class AgentSetupPacksPlugin(PluginBase):
             description=(
                 "IT company agent template packs — install Agents, DeepAgents, "
                 "and AgentFlows from versioned on-disk pack definitions."
+                "This plugin is currently in beta. Please report any issues or feedback to the ai-department."
             ),
             author="ai-department",
         )
