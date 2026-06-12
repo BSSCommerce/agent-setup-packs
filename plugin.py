@@ -26,7 +26,7 @@ class AgentSetupPacksPlugin(PluginBase):
                 "IT company agent template packs — install Agents, DeepAgents, "
                 "and AgentFlows from versioned on-disk pack definitions."
             ),
-            author="community",
+            author="ai-department",
         )
 
     def models(self):
